@@ -205,8 +205,11 @@ class Program
 
         // Enumerate and sort audio devices
         using var enumerator = new MMDeviceEnumerator();
-        var rawInputs = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-        var rawOutputs = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+        var rawInputs = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+            .Where(d => !d.FriendlyName.ToLower().Contains("in 16ch"));
+        var rawOutputs = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)
+            .Where(d => !d.FriendlyName.ToLower().Contains("in 16ch"));
+
 
         Func<MMDevice, bool> isPrioritized = d => {
             string name = d.FriendlyName.ToLower();
@@ -256,7 +259,6 @@ class Program
                 {
                     defaultOutputIndex = 1;
                 }
-
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("=== Select Audio Output Device ===");
                 for (int i = 0; i < sortedOutputs.Count; i++)
