@@ -6,21 +6,21 @@ window.airMic = {
     audioElement: null,
     remoteCandidatesQueue: [],
 
-    async startStreaming(signalingUrl, streamSecret, bypassHardware, selectedDeviceId, dotNetRef) {
+    async startStreaming(signalingUrl, streamSecret, bypassHardware, enableEchoCancellation, selectedDeviceId, dotNetRef) {
         this.dotNetRef = dotNetRef;
-        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "selectedDeviceId =", selectedDeviceId);
+        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "enableEchoCancellation =", enableEchoCancellation, "selectedDeviceId =", selectedDeviceId);
         try {
             // 1. Acquire local audio stream with latency-optimized constraints
             const constraints = {
-                audio: (selectedDeviceId || bypassHardware) ? {
+                audio: {
                     ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+                    echoCancellation: enableEchoCancellation,
                     ...(bypassHardware ? {
-                        echoCancellation: false,
                         noiseSuppression: false,
                         autoGainControl: false,
                         latency: 0
                     } : {})
-                } : true
+                }
             };
             
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -290,7 +290,7 @@ window.airMic = {
         navigator.mediaDevices.addEventListener('devicechange', this.deviceChangeListener);
     },
 
-    async changeAudioDevice(selectedDeviceId, bypassHardware) {
+    async changeAudioDevice(selectedDeviceId, bypassHardware, enableEchoCancellation) {
         console.log("[JS] Changing audio device to:", selectedDeviceId);
         if (!this.localStream) return;
         
@@ -300,15 +300,15 @@ window.airMic = {
             
             // Get new stream constraints
             const constraints = {
-                audio: (selectedDeviceId || bypassHardware) ? {
+                audio: {
                     ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+                    echoCancellation: enableEchoCancellation,
                     ...(bypassHardware ? {
-                        echoCancellation: false,
                         noiseSuppression: false,
                         autoGainControl: false,
                         latency: 0
                     } : {})
-                } : true
+                }
             };
             
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);

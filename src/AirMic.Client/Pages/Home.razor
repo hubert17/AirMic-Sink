@@ -25,7 +25,7 @@
         <!-- Main Card -->
         <MudItem xs="12">
             <MudCard Elevation="4" Style="background-color: rgba(30, 30, 40, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px;">
-                <MudCardContent Class="pa-6">
+                <MudCardContent Class="pa-5">
                     <MudGrid>
                         <!-- Form Fields -->
                         <MudItem xs="12">
@@ -87,21 +87,28 @@
                             </MudGrid>
                         </MudItem>
 
-                        <MudItem xs="12" Class="mt-n4">
+                        <MudItem xs="12" Class="mt-n5">
                             <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 12px; font-style: italic;">
                                 @GetSelectedDeviceLabel()
                             </MudText>
                         </MudItem>
 
                         <!-- Toggle Options -->
-                        <MudItem xs="12">
+                        <MudItem xs="12" Class="mt-n5">
                             <MudDivider Style="background-color: rgba(255,255,255,0.05); margin: 8px 0;" />
+                            <MudSwitch @bind-Value="EnableEchoCancellation" 
+                                       Color="Color.Primary" 
+                                       Label="Enable Echo Cancellation" 
+                                       Disabled="IsConnecting || IsStreaming" />
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block;margin-left: 58px; margin-bottom: 12px;">
+                                Recommended OFF unless using a single virtual audio device for both input and output to prevent loopback feedback.
+                            </MudText>
                             <MudSwitch @bind-Value="BypassHardware" 
                                        Color="Color.Primary" 
-                                       Label="Bypass Mobile Hardware Processing" 
+                                       Label="Bypass Other Hardware Processing" 
                                        Disabled="IsConnecting || IsStreaming" />
-                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-top: 4px; margin-left: 52px;">
-                                Recommended: Turning this on bypasses mobile echo cancellation and noise suppression, reducing CPU overhead and letting Microsoft Teams handle advanced filters.
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px;">
+                                Recommended: Turning this on bypasses mobile noise suppression and automatic gain control, reducing CPU overhead.
                             </MudText>
                         </MudItem>
 
@@ -229,6 +236,7 @@
     private string SignalingUrl { get; set; } = "ws://localhost:8443/ws";
     private string StreamSecret { get; set; } = "MySuperSecretKey123";
     private bool BypassHardware { get; set; } = true;
+    private bool EnableEchoCancellation { get; set; } = false;
     
     private string SignalingState { get; set; } = "Disconnected";
     private string WebRtcState { get; set; } = "Offline";
@@ -332,7 +340,7 @@
         {
             try
             {
-                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, BypassHardware);
+                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, BypassHardware, EnableEchoCancellation);
             }
             catch (Exception ex)
             {
@@ -360,6 +368,7 @@
                 SignalingUrl, 
                 StreamSecret, 
                 BypassHardware, 
+                EnableEchoCancellation,
                 SelectedDeviceId,
                 _selfReference
             );
