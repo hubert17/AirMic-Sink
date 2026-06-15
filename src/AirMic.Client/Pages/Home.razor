@@ -49,39 +49,48 @@
                                           Placeholder="Enter Stream Secret Key" />
                         </MudItem>
 
-                        <MudItem xs="12" Class="d-flex align-center gap-2">
-                            <MudSelect T="string" 
-                                       Label="Audio Input Device" 
-                                       Variant="Variant.Outlined" 
-                                       AnchorOrigin="Origin.BottomLeft"
-                                       TransformOrigin="Origin.TopLeft"
-                                       Adornment="Adornment.Start"
-                                       AdornmentIcon="@Icons.Material.Filled.Mic"
-                                       Value="SelectedDeviceId"
-                                       ValueChanged="OnSelectedDeviceChanged"
-                                       Disabled="IsConnecting || IsStreaming"
-                                       HelperText="@GetSelectedDeviceLabel()"
-                                       Style="max-width: 250px;"
-                                       Class="flex-grow-1">
-                                @if (!AudioDevices.Any())
-                                {
-                                    <MudSelectItem Value="@(string.Empty)">No audio devices found</MudSelectItem>
-                                }
-                                else
-                                {
-                                    @foreach (var device in AudioDevices)
-                                    {
-                                        <MudSelectItem Value="@device.DeviceId">@device.Label</MudSelectItem>
-                                    }
-                                }
-                            </MudSelect>
-                            <MudTooltip Text="Refresh devices">
-                                <MudIconButton Icon="@Icons.Material.Filled.Refresh" 
-                                               Color="Color.Primary" 
-                                               OnClick="LoadAudioDevices"
-                                               Disabled="IsConnecting || IsStreaming"
-                                               Style="margin-top: 6px;" />
-                            </MudTooltip>
+                        <MudItem xs="12">
+                            <MudGrid Spacing="1" Class="align-center">
+                                <MudItem xs="10">
+                                    <MudSelect T="string" 
+                                               Label="Audio Input Device" 
+                                               Variant="Variant.Outlined" 
+                                               AnchorOrigin="Origin.BottomLeft"
+                                               TransformOrigin="Origin.TopLeft"
+                                               Adornment="Adornment.Start"
+                                               AdornmentIcon="@Icons.Material.Filled.Mic"
+                                               Value="SelectedDeviceId"
+                                               ValueChanged="OnSelectedDeviceChanged"
+                                               Disabled="IsConnecting || IsStreaming">
+                                        @if (!AudioDevices.Any())
+                                        {
+                                            <MudSelectItem Value="@(string.Empty)">No audio devices found</MudSelectItem>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var device in AudioDevices)
+                                            {
+                                                <MudSelectItem Value="@device.DeviceId">@device.Label</MudSelectItem>
+                                            }
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="2" Class="d-flex align-center justify-center">
+                                    <MudTooltip Text="Refresh devices">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" 
+                                                       Color="Color.Primary" 
+                                                       OnClick="LoadAudioDevices"
+                                                       Disabled="IsConnecting || IsStreaming"
+                                                       Style="margin-top: 6px;" />
+                                    </MudTooltip>
+                                </MudItem>
+                            </MudGrid>
+                        </MudItem>
+
+                        <MudItem xs="12" Class="mt-n4">
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 12px; font-style: italic;">
+                                @GetSelectedDeviceLabel()
+                            </MudText>
                         </MudItem>
 
                         <!-- Toggle Options -->
