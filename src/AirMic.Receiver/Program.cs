@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NAudio.CoreAudioApi;
 
 namespace AirMic.Receiver;
 
@@ -201,6 +203,109 @@ class Program
         }
         Console.WriteLine();
 
+        // Enumerate and sort audio devices
+        using var enumerator = new MMDeviceEnumerator();
+        var rawInputs = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+        var rawOutputs = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+
+        Func<MMDevice, bool> isPrioritized = d => {
+            string name = d.FriendlyName.ToLower();
+            return name.Contains("virtual audio") || name.Contains("vac") || name.Contains("vb-cable");
+        };
+
+        var sortedInputs = rawInputs
+            .OrderByDescending(isPrioritized)
+            .ThenBy(d => d.FriendlyName)
+            .ToList();
+
+        var sortedOutputs = rawOutputs
+            .OrderByDescending(isPrioritized)
+            .ThenBy(d => d.FriendlyName)
+            .ToList();
+
+        MMDevice? selectedInputDevice = null;
+        MMDevice? selectedOutputDevice = null;
+
+        if (sortedInputs.Count > 0)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("=== Select Audio Input Device ===");
+            for (int i = 0; i < sortedInputs.Count; i++)
+            {
+                Console.WriteLine($"{i + 1}. {sortedInputs[i].FriendlyName}");
+            }
+            Console.Write($"Enter choice (1-{sortedInputs.Count}) or leave blank for default [Default: 1]: ");
+            Console.ResetColor();
+            
+            string? inputChoice = Console.ReadLine()?.Trim();
+            int selectedInputIndex = 0;
+            if (!string.IsNullOrEmpty(inputChoice))
+            {
+                if (int.TryParse(inputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedInputs.Count)
+                {
+                    selectedInputIndex = parsedIndex - 1;
+                }
+            }
+            selectedInputDevice = sortedInputs[selectedInputIndex];
+            Console.WriteLine();
+
+            if (sortedOutputs.Count > 0)
+            {
+                int defaultOutputIndex = 0;
+                if ((string.IsNullOrEmpty(inputChoice) || inputChoice == "1") && sortedOutputs.Count > 1)
+                {
+                    defaultOutputIndex = 1;
+                }
+
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("=== Select Audio Output Device ===");
+                for (int i = 0; i < sortedOutputs.Count; i++)
+                {
+                    Console.WriteLine($"{i + 1}. {sortedOutputs[i].FriendlyName}");
+                }
+                Console.Write($"Enter choice (1-{sortedOutputs.Count}) or leave blank for default [Default: {defaultOutputIndex + 1}]: ");
+                Console.ResetColor();
+
+                string? outputChoice = Console.ReadLine()?.Trim();
+                int selectedOutputIndex = defaultOutputIndex;
+                if (!string.IsNullOrEmpty(outputChoice))
+                {
+                    if (int.TryParse(outputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedOutputs.Count)
+                    {
+                        selectedOutputIndex = parsedIndex - 1;
+                    }
+                }
+                selectedOutputDevice = sortedOutputs[selectedOutputIndex];
+            }
+        }
+        else
+        {
+            if (sortedOutputs.Count > 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("=== Select Audio Output Device ===");
+                for (int i = 0; i < sortedOutputs.Count; i++)
+                {
+                    Console.WriteLine($"{i + 1}. {sortedOutputs[i].FriendlyName}");
+                }
+                Console.Write($"Enter choice (1-{sortedOutputs.Count}) or leave blank for default [Default: 1]: ");
+                Console.ResetColor();
+
+                string? outputChoice = Console.ReadLine()?.Trim();
+                int selectedOutputIndex = 0;
+                if (!string.IsNullOrEmpty(outputChoice))
+                {
+                    if (int.TryParse(outputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedOutputs.Count)
+                    {
+                        selectedOutputIndex = parsedIndex - 1;
+                    }
+                }
+                selectedOutputDevice = sortedOutputs[selectedOutputIndex];
+            }
+        }
+
+        Console.WriteLine();
+
         IAudioBufferSink? sink = null;
         WebRtcReceiver? webRtc = null;
 
@@ -214,13 +319,42 @@ class Program
             int channels = 1;
 
             Console.WriteLine("[*] Initializing audio sink device (Exclusive Mode)...");
-            sink.Initialize(sampleRate, bitsPerSample, channels);
+            sink.Initialize(sampleRate, bitsPerSample, channels, selectedOutputDevice?.ID);
             sink.Start();
 
             // 2. Instantiate and start WebRTC receiver
             Console.WriteLine("[*] Starting WebRTC receiver connection...");
             webRtc = new WebRtcReceiver(signalingUrl, streamSecret, sink);
             await webRtc.StartAsync();
+
+            string micName = selectedInputDevice?.FriendlyName ?? "Default";
+            string spkName = selectedOutputDevice?.FriendlyName ?? "Default";
+            
+            string title = "Set the following for your call/meeting app:";
+            string micText = $"  mic input:   {micName}";
+            string spkText = $"  speaker out: {spkName}";
+
+            int boxWidth = Math.Max(55, Math.Max(micText.Length + 4, spkText.Length + 4));
+            string borderLine = new string('─', boxWidth);
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("\n" + borderLine);
+            Console.WriteLine(title);
+            Console.ResetColor();
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write("  mic input:   ");
+            Console.ResetColor();
+            Console.WriteLine(micName);
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write("  speaker out: ");
+            Console.ResetColor();
+            Console.WriteLine(spkName);
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(borderLine);
+            Console.ResetColor();
 
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("\n[+] SUCCESS: WebRTC Receiver is running!");

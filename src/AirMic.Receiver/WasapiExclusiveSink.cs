@@ -14,7 +14,7 @@ public class WasapiExclusiveSink : IAudioBufferSink
     private WasapiOut? _wasapiOut;
     private BufferedWaveProvider? _bufferProvider;
 
-    public void Initialize(int sampleRate, int bitsPerSample, int channels)
+    public void Initialize(int sampleRate, int bitsPerSample, int channels, string? targetDeviceId = null)
     {
         var format = new WaveFormat(sampleRate, bitsPerSample, channels);
         
@@ -24,18 +24,33 @@ public class WasapiExclusiveSink : IAudioBufferSink
             DiscardOnBufferOverflow = true
         };
 
-        // Find the Virtual Audio Cable endpoint
         using var enumerator = new MMDeviceEnumerator();
         MMDevice? vacDevice = null;
-        var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
 
-        foreach (var device in devices)
+        if (!string.IsNullOrEmpty(targetDeviceId))
         {
-            string name = device.FriendlyName.ToLower();
-            if (name.Contains("cable input") || name.Contains("vb-cable") || name.Contains("virtual audio cable"))
+            try
             {
-                vacDevice = device;
-                break;
+                vacDevice = enumerator.GetDevice(targetDeviceId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[!] Warning: Failed to locate device by ID {targetDeviceId}: {ex.Message}. Falling back to default search.");
+            }
+        }
+
+        if (vacDevice == null)
+        {
+            var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+
+            foreach (var device in devices)
+            {
+                string name = device.FriendlyName.ToLower();
+                if (name.Contains("cable input") || name.Contains("vb-cable") || name.Contains("virtual audio cable"))
+                {
+                    vacDevice = device;
+                    break;
+                }
             }
         }
 

@@ -9,7 +9,7 @@ public interface IAudioBufferSink : IDisposable
     /// <summary>
     /// Initializes the audio buffer sink with the specified PCM formatting parameters.
     /// </summary>
-    void Initialize(int sampleRate, int bitsPerSample, int channels);
+    void Initialize(int sampleRate, int bitsPerSample, int channels, string? targetDeviceId = null);
 
     /// <summary>
     /// Writes raw PCM frames received from the source to the playback buffer.
