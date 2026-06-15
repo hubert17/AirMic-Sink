@@ -29,7 +29,7 @@ The pipeline is organized as a unified .NET Monorepo split into highly specializ
 📁 AirMic-Sink/
 │
 ├── 📁 src/
-│   ├── 📁 AirMic.Signaling/       # ASP.NET Core Minimal API WebSockets Hub (Docker/IIS-ready)
+│   ├── 📁 AirMic.Server/          # ASP.NET Core Minimal API WebSockets Hub (Docker/IIS-ready)
 │   ├── 📁 AirMic.Receiver/        # Desktop Engine (SIPSorcery WebRTC State Machine + WASAPI Sink)
 │   └── 📁 AirMic.Client/          # Mobile Capture Edge (.NET MAUI / Blazor Hybrid)
 │
@@ -100,12 +100,11 @@ dotnet run --project src/AirMic.Receiver --mode test-sink
 Deploy the signaling hub directly to Docker inside your homelab environment:
 
 ```bash
-cd src/AirMic.Signaling
-docker build -t airmic-signaling .
-docker run -d -p 5000:5000 -e STREAM_SECRET="YourSecretKeyHere" airmic-signaling
+docker build -t airmic-server -f src/AirMic.Server/Dockerfile .
+docker run -d -p 8443:8443 -e PORT=8443 -e STREAM_SECRET="YourSecretKeyHere" airmic-server
 
 ```
 
-Hook up your Cloudflare Tunnel to map an external secure endpoint straight to internal port `5000`.
+Hook up your Cloudflare Tunnel to map an external secure endpoint straight to internal port `8443`.
 
 

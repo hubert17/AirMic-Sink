@@ -1,0 +1,357 @@
+@page "/"
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-12">
+    <MudGrid>
+        <!-- Title and Logo -->
+        <MudItem xs="12" Class="d-flex flex-column align-center justify-center mb-4 text-center">
+            <div class="glow-container @(IsStreaming ? "streaming-glow" : "")">
+                <MudFab Color="@(IsStreaming ? Color.Success : Color.Primary)" 
+                        StartIcon="@(IsStreaming ? Icons.Material.Filled.Mic : Icons.Material.Filled.MicNone)" 
+                        Size="Size.Large"
+                        Class="mic-pulse-button"
+                        Disabled="false" />
+            </div>
+            <MudText Typo="Typo.h4" Class="mt-4 font-weight-bold" Style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                AirMic Streaming Edge
+            </MudText>
+            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.45);">
+                Low-Latency WebRTC Microphone Relay
+            </MudText>
+        </MudItem>
+
+        <!-- Main Card -->
+        <MudItem xs="12">
+            <MudCard Elevation="4" Style="background-color: rgba(30, 30, 40, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px;">
+                <MudCardContent Class="pa-6">
+                    <MudGrid>
+                        <!-- Form Fields -->
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="SignalingUrl" 
+                                          Label="Signaling Hub WebSockets URL" 
+                                          Variant="Variant.Outlined" 
+                                          Adornment="Adornment.Start" 
+                                          AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
+                                          Disabled="IsConnecting || IsStreaming"
+                                          Placeholder="wss://signaling.yourdomain.com/ws" />
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="StreamSecret" 
+                                          Label="Stream Secret Key" 
+                                          Variant="Variant.Outlined" 
+                                          InputType="InputType.Password" 
+                                          Adornment="Adornment.Start" 
+                                          AdornmentIcon="@Icons.Material.Filled.Lock"
+                                          Disabled="IsConnecting || IsStreaming"
+                                          Placeholder="Enter Stream Secret Key" />
+                        </MudItem>
+
+                        <!-- Toggle Options -->
+                        <MudItem xs="12">
+                            <MudDivider Style="background-color: rgba(255,255,255,0.05); margin: 8px 0;" />
+                            <MudSwitch @bind-Value="BypassHardware" 
+                                       Color="Color.Primary" 
+                                       Label="Bypass Mobile Hardware Processing" 
+                                       Disabled="IsConnecting || IsStreaming" />
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-top: -8px; margin-left: 52px;">
+                                Recommended: Turning this on bypasses mobile echo cancellation and noise suppression, reducing CPU overhead and letting Microsoft Teams handle advanced filters.
+                            </MudText>
+                        </MudItem>
+
+                        <!-- Error Message Alert -->
+                        @if (!string.IsNullOrEmpty(ErrorMessage))
+                        {
+                            <MudItem xs="12">
+                                <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="rounded-lg">
+                                    @ErrorMessage
+                                </MudAlert>
+                            </MudItem>
+                        }
+
+                        <!-- Action Buttons -->
+                        <MudItem xs="12" Class="d-flex justify-center mt-4">
+                            @if (!IsConnecting && !IsStreaming)
+                            {
+                                <MudButton Variant="Variant.Filled" 
+                                           Color="Color.Primary" 
+                                           Size="Size.Large"
+                                           FullWidth="true"
+                                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                                           OnClick="StartConnection"
+                                           Style="border-radius: 12px; height: 50px; background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                                    Start Audio Stream
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudButton Variant="Variant.Filled" 
+                                           Color="Color.Error" 
+                                           Size="Size.Large"
+                                           FullWidth="true"
+                                           StartIcon="@Icons.Material.Filled.Stop"
+                                           OnClick="StopConnection"
+                                           Style="border-radius: 12px; height: 50px;">
+                                    Stop Stream
+                                </MudButton>
+                            }
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Status Dashboard -->
+        <MudItem xs="12">
+            <MudCard Elevation="4" Style="background-color: rgba(20, 20, 25, 0.4); border: 1px solid rgba(255,255,255,0.03); border-radius: 16px;">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold" Color="Color.Primary">Connection Dashboard</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="px-6 pb-6 pt-0">
+                    <MudGrid Spacing="2">
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">Signaling Channel</MudText>
+                            <MudChip T="string" Color="@GetSignalingColor()" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Cable">
+                                @SignalingState
+                            </MudChip>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">WebRTC Peer State</MudText>
+                            <MudChip T="string" Color="@GetWebRtcColor()" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Wifi">
+                                @WebRtcState
+                            </MudChip>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">Microphone Access</MudText>
+                            <MudChip T="string" Color="@(IsMicCaptured ? Color.Success : Color.Default)" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.KeyboardVoice">
+                                @(IsMicCaptured ? "Active" : "Inactive")
+                            </MudChip>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">Loopback Feedback</MudText>
+                            <MudChip T="string" Color="@(IsLoopbackActive ? Color.Success : Color.Default)" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Hearing">
+                                @(IsLoopbackActive ? "Receiving" : "Offline")
+                            </MudChip>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+<style>
+    .glow-container {
+        padding: 10px;
+        border-radius: 50%;
+        transition: all 0.5s ease-in-out;
+    }
+    
+    .streaming-glow {
+        box-shadow: 0 0 20px 5px rgba(46, 204, 113, 0.4);
+        background-color: rgba(46, 204, 113, 0.05);
+    }
+
+    .mic-pulse-button {
+        transform: scale(1.1);
+        box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .streaming-glow .mic-pulse-button {
+        animation: pulse-animation 2s infinite;
+    }
+
+    @@keyframes pulse-animation {
+        0% {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.6);
+        }
+        70% {
+            transform: scale(1.15);
+            box-shadow: 0 0 0 15px rgba(46, 204, 113, 0);
+        }
+        100% {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+        }
+    }
+</style>
+
+@code {
+    private string SignalingUrl { get; set; } = "ws://localhost:8443/ws";
+    private string StreamSecret { get; set; } = "MySuperSecretKey123";
+    private bool BypassHardware { get; set; } = true;
+    
+    private string SignalingState { get; set; } = "Disconnected";
+    private string WebRtcState { get; set; } = "Offline";
+    private bool IsMicCaptured { get; set; } = false;
+    private bool IsLoopbackActive { get; set; } = false;
+    
+    private bool IsConnecting { get; set; } = false;
+    private bool IsStreaming { get; set; } = false;
+    private string? ErrorMessage { get; set; }
+
+    private DotNetObjectReference<Home>? _selfReference;
+
+    protected override void OnInitialized()
+    {
+        _selfReference = DotNetObjectReference.Create(this);
+
+        // Pre-fill parameters from browser URL
+        try
+        {
+            var uri = new Uri(NavigationManager.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            
+            var secretVal = query["secret"];
+            if (!string.IsNullOrEmpty(secretVal))
+            {
+                StreamSecret = secretVal;
+            }
+
+            var signalingVal = query["signaling"];
+            if (!string.IsNullOrEmpty(signalingVal))
+            {
+                SignalingUrl = signalingVal;
+            }
+            else
+            {
+                // Derive WebSocket URL directly from current browser hosting scheme, host, and port
+                string wsScheme = uri.Scheme == "https" ? "wss" : "ws";
+                SignalingUrl = $"{wsScheme}://{uri.Host}:{uri.Port}/ws";
+            }
+        }
+        catch
+        {
+            // Fallback to defaults on parsing errors
+        }
+    }
+
+    private async Task StartConnection()
+    {
+        ErrorMessage = null;
+        if (string.IsNullOrWhiteSpace(StreamSecret))
+        {
+            ErrorMessage = "Stream Secret Key is required.";
+            return;
+        }
+
+        IsConnecting = true;
+        SignalingState = "Connecting...";
+        
+        try
+        {
+            await JSRuntime.InvokeVoidAsync(
+                "airMic.startStreaming", 
+                SignalingUrl, 
+                StreamSecret, 
+                BypassHardware, 
+                _selfReference
+            );
+        }
+        catch (Exception ex)
+        {
+            IsConnecting = false;
+            SignalingState = "Disconnected";
+            ErrorMessage = $"JSInterop initialization failed: {ex.Message}";
+        }
+    }
+
+    private async Task StopConnection()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("airMic.stopStreaming");
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to stop stream gracefully: {ex.Message}";
+        }
+    }
+
+    [JSInvokable]
+    public void OnMicCaptured(bool isCaptured)
+    {
+        IsMicCaptured = isCaptured;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnSignalingStateChanged(string state)
+    {
+        SignalingState = state;
+        if (state == "Connected")
+        {
+            IsConnecting = false;
+            IsStreaming = true;
+        }
+        else if (state == "Disconnected")
+        {
+            IsConnecting = false;
+            IsStreaming = false;
+            IsMicCaptured = false;
+            IsLoopbackActive = false;
+            WebRtcState = "Offline";
+        }
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnWebRtcStateChanged(string state)
+    {
+        WebRtcState = state;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnLoopbackAudioReceived(bool isReceived)
+    {
+        IsLoopbackActive = isReceived;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnStreamStopped(bool stopped)
+    {
+        IsConnecting = false;
+        IsStreaming = false;
+        IsMicCaptured = false;
+        IsLoopbackActive = false;
+        SignalingState = "Disconnected";
+        WebRtcState = "Offline";
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnError(string errorMsg)
+    {
+        ErrorMessage = errorMsg;
+        StateHasChanged();
+    }
+
+    private Color GetSignalingColor() => SignalingState switch
+    {
+        "Connected" => Color.Success,
+        "Connecting..." => Color.Warning,
+        _ => Color.Default
+    };
+
+    private Color GetWebRtcColor() => WebRtcState switch
+    {
+        "connected" => Color.Success,
+        "connecting" => Color.Warning,
+        "checking" => Color.Warning,
+        "failed" => Color.Error,
+        "closed" => Color.Default,
+        _ => Color.Default
+    };
+
+    public void Dispose()
+    {
+        _selfReference?.Dispose();
+    }
+}

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/shared/">
+    <Project Path="shared/AirMic.Contracts/AirMic.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/AirMic.Client/AirMic.Client.csproj" />
+    <Project Path="src/AirMic.Receiver/AirMic.Receiver.csproj" />
+    <Project Path="src/AirMic.Server/AirMic.Server.csproj" />
+  </Folder>
+</Solution>
