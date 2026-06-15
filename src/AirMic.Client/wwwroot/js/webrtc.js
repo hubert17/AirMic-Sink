@@ -6,17 +6,20 @@ window.airMic = {
     audioElement: null,
     remoteCandidatesQueue: [],
 
-    async startStreaming(signalingUrl, streamSecret, bypassHardware, dotNetRef) {
+    async startStreaming(signalingUrl, streamSecret, bypassHardware, selectedDeviceId, dotNetRef) {
         this.dotNetRef = dotNetRef;
-        console.log("[JS] Starting stream: bypassHardware =", bypassHardware);
+        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "selectedDeviceId =", selectedDeviceId);
         try {
             // 1. Acquire local audio stream with latency-optimized constraints
             const constraints = {
-                audio: bypassHardware ? {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    latency: 0
+                audio: (selectedDeviceId || bypassHardware) ? {
+                    ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+                    ...(bypassHardware ? {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        latency: 0
+                    } : {})
                 } : true
             };
             
@@ -243,6 +246,88 @@ window.airMic = {
         if (this.dotNetRef) {
             this.dotNetRef.invokeMethodAsync("OnMicCaptured", false);
             this.dotNetRef.invokeMethodAsync("OnLoopbackAudioReceived", false);
+        }
+    },
+
+    async getAudioDevices() {
+        try {
+            let devices = await navigator.mediaDevices.enumerateDevices();
+            const hasLabels = devices.some(d => d.kind === 'audioinput' && d.label);
+            
+            if (!hasLabels) {
+                try {
+                    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    tempStream.getTracks().forEach(track => track.stop());
+                    devices = await navigator.mediaDevices.enumerateDevices();
+                } catch (permissionErr) {
+                    console.warn("[JS] Microphone permission denied when trying to list devices:", permissionErr);
+                }
+            }
+            
+            return devices
+                .filter(d => d.kind === 'audioinput')
+                .map(d => ({
+                    deviceId: d.deviceId,
+                    label: d.label || `Microphone (${d.deviceId.slice(0, 5)}...)`
+                }));
+        } catch (err) {
+            console.error("[JS] Error listing audio devices:", err);
+            return [];
+        }
+    },
+
+    deviceChangeListener: null,
+
+    registerDeviceChangeListener(dotNetRef) {
+        if (this.deviceChangeListener) {
+            navigator.mediaDevices.removeEventListener('devicechange', this.deviceChangeListener);
+        }
+        this.deviceChangeListener = async () => {
+            console.log("[JS] Media devices changed, updating device list.");
+            const devices = await this.getAudioDevices();
+            dotNetRef.invokeMethodAsync("OnDevicesChanged", devices);
+        };
+        navigator.mediaDevices.addEventListener('devicechange', this.deviceChangeListener);
+    },
+
+    async changeAudioDevice(selectedDeviceId, bypassHardware) {
+        console.log("[JS] Changing audio device to:", selectedDeviceId);
+        if (!this.localStream) return;
+        
+        try {
+            // Stop current local track(s)
+            this.localStream.getTracks().forEach(track => track.stop());
+            
+            // Get new stream constraints
+            const constraints = {
+                audio: (selectedDeviceId || bypassHardware) ? {
+                    ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
+                    ...(bypassHardware ? {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        latency: 0
+                    } : {})
+                } : true
+            };
+            
+            this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const newTrack = this.localStream.getAudioTracks()[0];
+            
+            // Replace the track in all active peer connection senders
+            if (this.peerConnection) {
+                const senders = this.peerConnection.getSenders();
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if (audioSender) {
+                    await audioSender.replaceTrack(newTrack);
+                    console.log("[JS] Audio track successfully replaced on PeerConnection.");
+                }
+            }
+        } catch (err) {
+            console.error("[JS] Failed to switch audio device:", err);
+            if (this.dotNetRef) {
+                this.dotNetRef.invokeMethodAsync("OnError", "Failed to switch audio device: " + err.message);
+            }
         }
     }
 };

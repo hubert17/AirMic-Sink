@@ -49,6 +49,39 @@
                                           Placeholder="Enter Stream Secret Key" />
                         </MudItem>
 
+                        <MudItem xs="12" Class="d-flex align-center gap-2">
+                            <MudSelect T="string" 
+                                       Label="Audio Input Device" 
+                                       Variant="Variant.Outlined" 
+                                       AnchorOrigin="Origin.BottomLeft"
+                                       TransformOrigin="Origin.TopLeft"
+                                       Adornment="Adornment.Start"
+                                       AdornmentIcon="@Icons.Material.Filled.Mic"
+                                       Value="SelectedDeviceId"
+                                       ValueChanged="OnSelectedDeviceChanged"
+                                       Disabled="IsConnecting"
+                                       Class="flex-grow-1">
+                                @if (!AudioDevices.Any())
+                                {
+                                    <MudSelectItem Value="@(string.Empty)">No audio devices found</MudSelectItem>
+                                }
+                                else
+                                {
+                                    @foreach (var device in AudioDevices)
+                                    {
+                                        <MudSelectItem Value="@device.DeviceId">@device.Label</MudSelectItem>
+                                    }
+                                }
+                            </MudSelect>
+                            <MudTooltip Text="Refresh devices">
+                                <MudIconButton Icon="@Icons.Material.Filled.Refresh" 
+                                               Color="Color.Primary" 
+                                               OnClick="LoadAudioDevices"
+                                               Disabled="IsConnecting"
+                                               Style="margin-top: 6px;" />
+                            </MudTooltip>
+                        </MudItem>
+
                         <!-- Toggle Options -->
                         <MudItem xs="12">
                             <MudDivider Style="background-color: rgba(255,255,255,0.05); margin: 8px 0;" />
@@ -197,6 +230,9 @@
 
     private DotNetObjectReference<Home>? _selfReference;
 
+    private List<AudioDevice> AudioDevices { get; set; } = new();
+    private string SelectedDeviceId { get; set; } = string.Empty;
+
     protected override void OnInitialized()
     {
         _selfReference = DotNetObjectReference.Create(this);
@@ -231,6 +267,63 @@
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadAudioDevices();
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("airMic.registerDeviceChangeListener", _selfReference);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Client] Failed to register device change listener: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task LoadAudioDevices()
+    {
+        try
+        {
+            var list = await JSRuntime.InvokeAsync<List<AudioDevice>>("airMic.getAudioDevices");
+            if (list != null && list.Count > 0)
+            {
+                AudioDevices = list;
+                if (string.IsNullOrEmpty(SelectedDeviceId) || !AudioDevices.Any(d => d.DeviceId == SelectedDeviceId))
+                {
+                    SelectedDeviceId = AudioDevices[0].DeviceId;
+                }
+            }
+            else
+            {
+                AudioDevices = new List<AudioDevice>();
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to load audio devices: {ex.Message}";
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnSelectedDeviceChanged(string deviceId)
+    {
+        SelectedDeviceId = deviceId;
+        if (IsStreaming)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, BypassHardware);
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = $"Failed to change audio device: {ex.Message}";
+            }
+        }
+    }
+
     private async Task StartConnection()
     {
         ErrorMessage = null;
@@ -250,6 +343,7 @@
                 SignalingUrl, 
                 StreamSecret, 
                 BypassHardware, 
+                SelectedDeviceId,
                 _selfReference
             );
         }
@@ -271,6 +365,17 @@
         {
             ErrorMessage = $"Failed to stop stream gracefully: {ex.Message}";
         }
+    }
+
+    [JSInvokable]
+    public void OnDevicesChanged(List<AudioDevice> devices)
+    {
+        AudioDevices = devices ?? new List<AudioDevice>();
+        if (!AudioDevices.Any(d => d.DeviceId == SelectedDeviceId))
+        {
+            SelectedDeviceId = AudioDevices.FirstOrDefault()?.DeviceId ?? string.Empty;
+        }
+        StateHasChanged();
     }
 
     [JSInvokable]
@@ -353,5 +458,11 @@
     public void Dispose()
     {
         _selfReference?.Dispose();
+    }
+
+    public class AudioDevice
+    {
+        public string DeviceId { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
     }
 }
