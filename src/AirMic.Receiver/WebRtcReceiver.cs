@@ -93,11 +93,11 @@ public class WebRtcReceiver : IDisposable
                 await _webSocket.ConnectAsync(uri, _cts.Token);
                 break;
             }
-            catch (Exception) when (retryCount < maxRetries && !_cts.Token.IsCancellationRequested)
+            catch (Exception ex) when (retryCount < maxRetries && !_cts.Token.IsCancellationRequested)
             {
                 retryCount++;
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"[!] Connection attempt {retryCount}/{maxRetries} failed. Server may still be starting. Retrying in 2 seconds...");
+                Console.WriteLine($"[!] Connection attempt {retryCount}/{maxRetries} failed: {ex.Message}. Retrying in 2 seconds...");
                 Console.ResetColor();
                 await Task.Delay(2000, _cts.Token);
                 _webSocket.Dispose();

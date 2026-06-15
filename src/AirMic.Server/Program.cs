@@ -15,8 +15,8 @@ app.UseStaticFiles();
 // Enable WebSockets middleware
 app.UseWebSockets();
 
-// Stream Secret configuration via environment variable or default
-string streamSecret = Environment.GetEnvironmentVariable("STREAM_SECRET") ?? "MySuperSecretKey123";
+// Stream Secret configuration via appsettings configuration, environment variable or default
+string streamSecret = builder.Configuration["StreamSecret"] ?? Environment.GetEnvironmentVariable("STREAM_SECRET") ?? "MySuperSecretKey123";
 var peers = new ConcurrentDictionary<string, WebSocket>();
 
 // WebSocket endpoint

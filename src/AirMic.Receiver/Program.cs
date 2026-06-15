@@ -163,7 +163,7 @@ class Program
 
         // Configure signaling parameters from environment variables or defaults
         string signalingUrl = Environment.GetEnvironmentVariable("SIGNALING_URL") ?? "wss://localhost:7133/ws";
-        string streamSecret = Environment.GetEnvironmentVariable("STREAM_SECRET") ?? "MySuperSecretKey123";
+        string streamSecret = Environment.GetEnvironmentVariable("STREAM_SECRET") ?? TryGetSecretFromAppSettings() ?? "MySuperSecretKey123";
 
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("=== Select Signaling Endpoint ===");
@@ -388,5 +388,64 @@ class Program
             sink?.Dispose();
             Console.WriteLine("\n[*] Engine shut down. Resources released.");
         }
+    }
+
+    private static string? TryGetSecretFromAppSettings()
+    {
+        string? env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+        var fileNames = new List<string>();
+        if (!string.IsNullOrEmpty(env))
+        {
+            fileNames.Add($"appsettings.{env}.json");
+        }
+        fileNames.Add("appsettings.Development.json");
+        fileNames.Add("appsettings.json");
+
+        var dirsToSearch = new[]
+        {
+            System.IO.Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory
+        };
+
+        foreach (var startDir in dirsToSearch)
+        {
+            var current = new System.IO.DirectoryInfo(startDir);
+            while (current != null)
+            {
+                foreach (var fileName in fileNames)
+                {
+                    var pathsToCheck = new[]
+                    {
+                        System.IO.Path.Combine(current.FullName, "src", "AirMic.Server", fileName),
+                        System.IO.Path.Combine(current.FullName, "AirMic.Server", fileName),
+                        System.IO.Path.Combine(current.FullName, fileName)
+                    };
+
+                    foreach (var path in pathsToCheck)
+                    {
+                        if (System.IO.File.Exists(path))
+                        {
+                            try
+                            {
+                                var json = System.IO.File.ReadAllText(path);
+                                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                                if (doc.RootElement.TryGetProperty("StreamSecret", out var prop))
+                                {
+                                    return prop.GetString();
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore and keep looking
+                            }
+                        }
+                    }
+                }
+
+                current = current.Parent;
+            }
+        }
+
+        return null;
     }
 }
