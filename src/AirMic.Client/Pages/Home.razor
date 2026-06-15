@@ -30,7 +30,7 @@
                         <!-- Form Fields -->
                         <MudItem xs="12">
                             <MudTextField @bind-Value="SignalingUrl" 
-                                          Label="Signaling Hub WebSockets URL" 
+                                          Label="Server URL" 
                                           Variant="Variant.Outlined" 
                                           Adornment="Adornment.Start" 
                                           AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
@@ -40,7 +40,7 @@
 
                         <MudItem xs="12">
                             <MudTextField @bind-Value="StreamSecret" 
-                                          Label="Stream Secret Key" 
+                                          Label="Stream Key" 
                                           Variant="Variant.Outlined" 
                                           InputType="InputType.Password" 
                                           Adornment="Adornment.Start" 
@@ -356,6 +356,24 @@
         {
             ErrorMessage = "Stream Secret Key is required.";
             return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SignalingUrl))
+        {
+            string url = SignalingUrl.Trim();
+            if (!url.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) && 
+                !url.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = "wss://" + url;
+            }
+            
+            string cleanedUrl = url.TrimEnd('/');
+            if (!cleanedUrl.EndsWith("/ws", StringComparison.OrdinalIgnoreCase))
+            {
+                cleanedUrl = cleanedUrl + "/ws";
+            }
+            
+            SignalingUrl = cleanedUrl;
         }
 
         IsConnecting = true;
