@@ -59,7 +59,7 @@
                                        AdornmentIcon="@Icons.Material.Filled.Mic"
                                        Value="SelectedDeviceId"
                                        ValueChanged="OnSelectedDeviceChanged"
-                                       Disabled="IsConnecting"
+                                       Disabled="IsConnecting || IsStreaming"
                                        Class="flex-grow-1">
                                 @if (!AudioDevices.Any())
                                 {
@@ -77,7 +77,7 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.Refresh" 
                                                Color="Color.Primary" 
                                                OnClick="LoadAudioDevices"
-                                               Disabled="IsConnecting"
+                                               Disabled="IsConnecting || IsStreaming"
                                                Style="margin-top: 6px;" />
                             </MudTooltip>
                         </MudItem>
