@@ -15,7 +15,7 @@
                         Disabled="false" />
             </div>
             <MudText Typo="Typo.h4" Class="mt-4 font-weight-bold" Style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                AirMic Streaming Edge
+                AirMic
             </MudText>
             <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.45);">
                 Low-Latency WebRTC Microphone Relay
@@ -60,6 +60,8 @@
                                        Value="SelectedDeviceId"
                                        ValueChanged="OnSelectedDeviceChanged"
                                        Disabled="IsConnecting || IsStreaming"
+                                       HelperText="@GetSelectedDeviceLabel()"
+                                       Style="max-width: 250px;"
                                        Class="flex-grow-1">
                                 @if (!AudioDevices.Any())
                                 {
@@ -89,7 +91,7 @@
                                        Color="Color.Primary" 
                                        Label="Bypass Mobile Hardware Processing" 
                                        Disabled="IsConnecting || IsStreaming" />
-                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-top: -8px; margin-left: 52px;">
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-top: 4px; margin-left: 52px;">
                                 Recommended: Turning this on bypasses mobile echo cancellation and noise suppression, reducing CPU overhead and letting Microsoft Teams handle advanced filters.
                             </MudText>
                         </MudItem>
@@ -232,6 +234,12 @@
 
     private List<AudioDevice> AudioDevices { get; set; } = new();
     private string SelectedDeviceId { get; set; } = string.Empty;
+
+    private string GetSelectedDeviceLabel()
+    {
+        var device = AudioDevices.FirstOrDefault(d => d.DeviceId == SelectedDeviceId);
+        return device != null ? device.Label : "No device selected";
+    }
 
     protected override void OnInitialized()
     {
