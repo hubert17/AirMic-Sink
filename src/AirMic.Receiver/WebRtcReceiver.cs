@@ -36,6 +36,8 @@ public class WebRtcReceiver : IDisposable
     
     private readonly short[] _pcmBuffer = new short[5760]; // Max Opus frame duration is 120ms (5760 samples @ 48kHz)
 
+    public event Action<string>? OnDisconnected;
+
     public WebRtcReceiver(string signalingUrl, string streamSecret, IAudioBufferSink audioSink)
     {
         _signalingUrl = signalingUrl;
@@ -129,6 +131,7 @@ public class WebRtcReceiver : IDisposable
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     Console.WriteLine("[-] Signaling WebSocket closed by remote server.");
+                    OnDisconnected?.Invoke("Signaling WebSocket closed.");
                     break;
                 }
 
@@ -156,6 +159,7 @@ public class WebRtcReceiver : IDisposable
             if (!cancellationToken.IsCancellationRequested)
             {
                 Console.WriteLine($"[!] Exception in signaling loop: {ex.Message}");
+                OnDisconnected?.Invoke($"Signaling loop exception: {ex.Message}");
             }
         }
     }
@@ -206,6 +210,7 @@ public class WebRtcReceiver : IDisposable
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine("[-] WebRTC Audio connection lost.");
                     Console.ResetColor();
+                    OnDisconnected?.Invoke("WebRTC connection lost.");
                 }
             };
 
