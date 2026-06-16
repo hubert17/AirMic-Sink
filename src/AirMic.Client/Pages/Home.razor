@@ -3,10 +3,10 @@
 @inject IJSRuntime JSRuntime
 @implements IDisposable
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-4">
     <MudGrid>
         <!-- Title and Logo -->
-        <MudItem xs="12" Class="d-flex flex-column align-center justify-center mb-4 text-center">
+        <MudItem xs="12" Class="d-flex flex-column align-center justify-center text-center">
             <div class="glow-container @(IsStreaming ? "streaming-glow" : "")">
                 <MudFab Color="@(IsStreaming ? Color.Success : Color.Primary)"
                         StartIcon="@(IsStreaming ? Icons.Material.Filled.Mic : Icons.Material.Filled.MicNone)"
