@@ -126,7 +126,8 @@
                         <MudItem xs="12" Class="d-flex justify-center mt-4">
                             @if (!IsConnecting && !IsStreaming)
                             {
-                                <MudButton Variant="Variant.Filled"
+                                <MudButton id="start-stream-btn"
+                                           Variant="Variant.Filled"
                                            Color="Color.Primary"
                                            Size="Size.Large"
                                            FullWidth="true"
@@ -193,7 +194,28 @@
             </MudCard>
         </MudItem>
     </MudGrid>
+    <MudGrid Class="justify-center mt-4 mb-2">
+        <MudItem xs="12" Class="d-flex flex-column align-center justify-center text-center">
+            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.2);">
+                AirMic-Sink v1.0.10 by Gabs
+            </MudText>
+            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.12); font-size: 0.75rem; margin-top: 2px;">
+                Device: @(IsMobileDevice ? "Mobile" : "Desktop") | Wake Lock: @(WakeLockActive ? "Active" : "Inactive")
+            </MudText>
+        </MudItem>
+    </MudGrid>
 </MudContainer>
+
+@if (ShowOledOverlay && WebRtcState == "connected")
+{
+    <div class="oled-overlay" @onclick="DismissOledOverlay">
+        <div class="oled-overlay-content">
+            <MudIcon Icon="@Icons.Material.Filled.Mic" Style="font-size: 3.5rem; color: rgba(239, 83, 80, 0.35); margin-bottom: 1rem;" />
+            <p class="oled-text">AirMic-Sink Active</p>
+            <p class="oled-subtext">Tap anywhere to wake up screen</p>
+        </div>
+    </div>
+}
 
 <style>
     .glow-container {
@@ -232,6 +254,57 @@
             box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
         }
     }
+
+    .oled-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.93);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        animation: oled-fade-in 0.3s ease-out;
+    }
+
+    .oled-overlay-content {
+        text-align: center;
+        user-select: none;
+        animation: oled-pixel-shift 3000s steps(1) infinite;
+    }
+
+    @@keyframes oled-pixel-shift {
+        0% { transform: translate(0, 0); }
+        20% { transform: translate(12px, -15px); }
+        40% { transform: translate(-15px, 10px); }
+        60% { transform: translate(15px, 12px); }
+        80% { transform: translate(-10px, -12px); }
+        100% { transform: translate(0, 0); }
+    }
+
+    .oled-text {
+        color: rgba(255, 255, 255, 0.25);
+        font-size: 1.25rem;
+        font-weight: 500;
+        margin: 0;
+    }
+
+    .oled-subtext {
+        color: rgba(255, 255, 255, 0.12);
+        font-size: 0.85rem;
+        margin-top: 4px;
+        margin-bottom: 0;
+    }
+
+    @@keyframes oled-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
 </style>
 
 @code {
@@ -248,6 +321,9 @@
     private bool IsConnecting { get; set; } = false;
     private bool IsStreaming { get; set; } = false;
     private string? ErrorMessage { get; set; }
+    private bool ShowOledOverlay { get; set; } = false;
+    private bool IsMobileDevice { get; set; } = false;
+    private bool WakeLockActive { get; set; } = false;
 
     private DotNetObjectReference<Home>? _selfReference;
 
@@ -301,7 +377,7 @@
             await LoadAudioDevices();
             try
             {
-                await JSRuntime.InvokeVoidAsync("airMic.registerDeviceChangeListener", _selfReference);
+                await JSRuntime.InvokeVoidAsync("airMic.initialize", _selfReference);
             }
             catch (Exception ex)
             {
@@ -449,6 +525,7 @@
             IsMicCaptured = false;
             IsLoopbackActive = false;
             WebRtcState = "Offline";
+            ShowOledOverlay = false;
         }
 
         StateHasChanged();
@@ -477,6 +554,7 @@
         IsLoopbackActive = false;
         SignalingState = "Disconnected";
         WebRtcState = "Offline";
+        ShowOledOverlay = false;
         StateHasChanged();
     }
 
@@ -485,6 +563,47 @@
     {
         ErrorMessage = errorMsg;
         StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void SetOledOverlayVisible(bool visible)
+    {
+        ShowOledOverlay = visible;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void SetDeviceStatus(bool isMobile)
+    {
+        IsMobileDevice = isMobile;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void SetWakeLockStatus(bool active)
+    {
+        WakeLockActive = active;
+        StateHasChanged();
+    }
+
+    private void DismissOledOverlay()
+    {
+        try
+        {
+            JSRuntime.InvokeVoidAsync("airMic.resetInactivityTimer");
+        }
+        catch {}
+        ShowOledOverlay = false;
+        StateHasChanged();
+    }
+
+    private void ActivateOledOverlay()
+    {
+        try
+        {
+            JSRuntime.InvokeVoidAsync("airMic.setOverlayVisible", true);
+        }
+        catch {}
     }
 
     private Color GetSignalingColor() => SignalingState switch
