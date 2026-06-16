@@ -231,7 +231,7 @@ public class WebRtcReceiver : IDisposable
             {
                 if (candidate != null && !string.IsNullOrEmpty(candidate.candidate))
                 {
-                    Console.WriteLine($"[DEBUG] Gathered local ICE candidate: {candidate.candidate}");
+                    FileLogger.Log($"Gathered local ICE candidate: {candidate.candidate}", "DEBUG");
                     
                     // Prepend required prefix if missing to satisfy WebRTC specifications
                     string candidateFormat = candidate.candidate;
@@ -280,7 +280,7 @@ public class WebRtcReceiver : IDisposable
                 sdp = message.Sdp
             };
             
-            Console.WriteLine($"[DEBUG] Remote SDP Offer:\n{message.Sdp}\n");
+            FileLogger.Log($"Remote SDP Offer:\n{message.Sdp}", "DEBUG");
 
             var result = _peerConnection.setRemoteDescription(sdpInit);
             if (result != SetDescriptionResultEnum.OK)
@@ -293,7 +293,7 @@ public class WebRtcReceiver : IDisposable
             var answer = _peerConnection.createAnswer();
             await _peerConnection.setLocalDescription(answer);
 
-            Console.WriteLine($"[DEBUG] Local SDP Answer:\n{answer.sdp}\n");
+            FileLogger.Log($"Local SDP Answer:\n{answer.sdp}", "DEBUG");
 
             // Send SDP Answer back to signaling channel
             var ansMsg = new SignalingMessage
@@ -309,7 +309,7 @@ public class WebRtcReceiver : IDisposable
         {
             if (_peerConnection != null && message.Candidate != null)
             {
-                Console.WriteLine($"[DEBUG] Received remote ICE Candidate: {message.Candidate.Candidate}");
+                FileLogger.Log($"Received remote ICE Candidate: {message.Candidate.Candidate}", "DEBUG");
                 
                 _peerConnection.addIceCandidate(new RTCIceCandidateInit
                 {
@@ -352,7 +352,7 @@ public class WebRtcReceiver : IDisposable
         catch (Exception ex)
         {
             // Log occasionally or drop silently to avoid console flooding during high packet rates
-            Console.WriteLine($"[!] Opus Decoding Error: {ex.Message}");
+            FileLogger.Log($"Opus Decoding Error: {ex.Message}", "ERROR");
         }
     }
 
@@ -650,20 +650,10 @@ public class SimpleConsoleLogger : ILogger
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         var message = formatter(state, exception);
-        // Only show debug/warning/error logs of SIPSorcery to avoid cluttering the screen with info traces
+        // Write SIPSorcery logs to the log file instead of cluttering the console
         if (logLevel >= LogLevel.Debug)
         {
-            var color = Console.ForegroundColor;
-            if (logLevel == LogLevel.Error || logLevel == LogLevel.Critical) Console.ForegroundColor = ConsoleColor.Red;
-            else if (logLevel == LogLevel.Warning) Console.ForegroundColor = ConsoleColor.Yellow;
-            else Console.ForegroundColor = ConsoleColor.DarkGray;
-
-            Console.WriteLine($"[SIPSorcery:{logLevel}] {message}");
-            if (exception != null)
-            {
-                Console.WriteLine(exception.ToString());
-            }
-            Console.ForegroundColor = color;
+            FileLogger.Log(message, $"SIPSorcery:{logLevel}", exception);
         }
     }
 }

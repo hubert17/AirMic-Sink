@@ -1,6 +1,7 @@
 {
-  "name": "AirMic.Client",
-  "short_name": "AirMic.Client",
+  "name": "AirMic-Sink",
+  "short_name": "AirMic-Sink",
+  "description": "Low-Latency WebRTC Microphone Relay",
   "id": "./",
   "start_url": "./",
   "display": "standalone",
