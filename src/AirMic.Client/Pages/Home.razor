@@ -8,11 +8,11 @@
         <!-- Title and Logo -->
         <MudItem xs="12" Class="d-flex flex-column align-center justify-center mb-4 text-center">
             <div class="glow-container @(IsStreaming ? "streaming-glow" : "")">
-                <MudFab Color="@(IsStreaming ? Color.Success : Color.Primary)" 
-                        StartIcon="@(IsStreaming ? Icons.Material.Filled.Mic : Icons.Material.Filled.MicNone)" 
+                <MudFab Color="@(IsStreaming ? Color.Success : Color.Primary)"
+                        StartIcon="@(IsStreaming ? Icons.Material.Filled.Mic : Icons.Material.Filled.MicNone)"
                         Size="Size.Large"
                         Class="mic-pulse-button"
-                        Disabled="false" />
+                        Disabled="false"/>
             </div>
             <MudText Typo="Typo.h4" Class="mt-4 font-weight-bold" Style="background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
                 AirMic
@@ -29,32 +29,32 @@
                     <MudGrid>
                         <!-- Form Fields -->
                         <MudItem xs="12">
-                            <MudTextField @bind-Value="SignalingUrl" 
-                                          Label="Server URL" 
-                                          Variant="Variant.Outlined" 
-                                          Adornment="Adornment.Start" 
+                            <MudTextField @bind-Value="SignalingUrl"
+                                          Label="Server URL"
+                                          Variant="Variant.Outlined"
+                                          Adornment="Adornment.Start"
                                           AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
                                           Disabled="IsConnecting || IsStreaming"
-                                          Placeholder="wss://signaling.yourdomain.com/ws" />
+                                          Placeholder="wss://signaling.yourdomain.com/ws"/>
                         </MudItem>
 
                         <MudItem xs="12">
-                            <MudTextField @bind-Value="StreamSecret" 
-                                          Label="Stream Key" 
-                                          Variant="Variant.Outlined" 
-                                          InputType="InputType.Password" 
-                                          Adornment="Adornment.Start" 
+                            <MudTextField @bind-Value="StreamSecret"
+                                          Label="Stream Key"
+                                          Variant="Variant.Outlined"
+                                          InputType="InputType.Password"
+                                          Adornment="Adornment.Start"
                                           AdornmentIcon="@Icons.Material.Filled.Lock"
                                           Disabled="IsConnecting || IsStreaming"
-                                          Placeholder="Enter Stream Secret Key" />
+                                          Placeholder="Enter Stream Secret Key"/>
                         </MudItem>
 
                         <MudItem xs="12">
                             <MudGrid Spacing="1" Class="align-center">
                                 <MudItem xs="10">
-                                    <MudSelect T="string" 
-                                               Label="Audio Input Device" 
-                                               Variant="Variant.Outlined" 
+                                    <MudSelect T="string"
+                                               Label="Audio Input Device"
+                                               Variant="Variant.Outlined"
                                                AnchorOrigin="Origin.BottomLeft"
                                                TransformOrigin="Origin.TopLeft"
                                                Adornment="Adornment.Start"
@@ -77,11 +77,11 @@
                                 </MudItem>
                                 <MudItem xs="2" Class="d-flex align-center justify-center">
                                     <MudTooltip Text="Refresh devices">
-                                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" 
-                                                       Color="Color.Primary" 
+                                        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                                       Color="Color.Primary"
                                                        OnClick="LoadAudioDevices"
                                                        Disabled="IsConnecting || IsStreaming"
-                                                       Style="margin-top: 6px;" />
+                                                       Style="margin-top: 6px;"/>
                                     </MudTooltip>
                                 </MudItem>
                             </MudGrid>
@@ -95,27 +95,20 @@
 
                         <!-- Toggle Options -->
                         <MudItem xs="12" Class="mt-n5">
-                            <MudDivider Style="background-color: rgba(255,255,255,0.05); margin: 8px 0;" />
-                            <MudSwitch @bind-Value="OptimizeForVoice" 
-                                       Color="Color.Primary" 
-                                       Label="Optimize for Voice Speech" 
-                                       Disabled="IsConnecting || IsStreaming" />
+                            <MudDivider Style="background-color: rgba(255,255,255,0.05); margin: 8px 0;"/>
+                            <MudSwitch @bind-Value="OptimizeForVoice"
+                                       Color="Color.Primary"
+                                       Label="Voice-Speech Optimized Mode"
+                                       Disabled="IsConnecting || IsStreaming"/>
                             <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px; margin-bottom: 12px;">
-                                Recommended: Caps bitrate (16kbps) and limits frequency response to voice range (16kHz), lowering latency and bandwidth significantly.
+                                Recommended: Standard setting for meetings. Keeps your voice sharp and stable while using very little network bandwidth.
                             </MudText>
-                            <MudSwitch @bind-Value="EnableEchoCancellation" 
-                                       Color="Color.Primary" 
-                                       Label="Enable Echo Cancellation" 
-                                       Disabled="IsConnecting || IsStreaming" />
-                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block;margin-left: 58px; margin-bottom: 12px;">
-                                Recommended OFF unless using a single virtual audio device for both input and output to prevent loopback feedback.
-                            </MudText>
-                            <MudSwitch @bind-Value="BypassHardware" 
-                                       Color="Color.Primary" 
-                                       Label="Bypass Other Hardware Processing" 
-                                       Disabled="IsConnecting || IsStreaming" />
+                            <MudSwitch @bind-Value="BypassHardware"
+                                       Color="Color.Primary"
+                                       Label="Bypass Hardware Processing"
+                                       Disabled="IsConnecting || IsStreaming"/>
                             <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px;">
-                                Recommended: Turning this on bypasses mobile noise suppression and automatic gain control, reducing CPU overhead (overridden if Voice Optimization is enabled).
+                                Recommended: Turning this on bypasses mobile noise suppression and automatic gain control, reducing CPU overhead.
                             </MudText>
                         </MudItem>
 
@@ -133,8 +126,8 @@
                         <MudItem xs="12" Class="d-flex justify-center mt-4">
                             @if (!IsConnecting && !IsStreaming)
                             {
-                                <MudButton Variant="Variant.Filled" 
-                                           Color="Color.Primary" 
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Primary"
                                            Size="Size.Large"
                                            FullWidth="true"
                                            StartIcon="@Icons.Material.Filled.PlayArrow"
@@ -145,8 +138,8 @@
                             }
                             else
                             {
-                                <MudButton Variant="Variant.Filled" 
-                                           Color="Color.Error" 
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Error"
                                            Size="Size.Large"
                                            FullWidth="true"
                                            StartIcon="@Icons.Material.Filled.Stop"
@@ -190,7 +183,7 @@
                             </MudChip>
                         </MudItem>
                         <MudItem xs="6">
-                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">Loopback Feedback</MudText>
+                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">Remote Audio</MudText>
                             <MudChip T="string" Color="@(IsLoopbackActive ? Color.Success : Color.Default)" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Hearing">
                                 @(IsLoopbackActive ? "Receiving" : "Offline")
                             </MudChip>
@@ -208,7 +201,7 @@
         border-radius: 50%;
         transition: all 0.5s ease-in-out;
     }
-    
+
     .streaming-glow {
         box-shadow: 0 0 20px 5px rgba(46, 204, 113, 0.4);
         background-color: rgba(46, 204, 113, 0.05);
@@ -228,10 +221,12 @@
             transform: scale(1.1);
             box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.6);
         }
+
         70% {
             transform: scale(1.15);
             box-shadow: 0 0 0 15px rgba(46, 204, 113, 0);
         }
+
         100% {
             transform: scale(1.1);
             box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
@@ -244,13 +239,12 @@
     private string StreamSecret { get; set; } = "MySuperSecretKey123";
     private bool OptimizeForVoice { get; set; } = true;
     private bool BypassHardware { get; set; } = true;
-    private bool EnableEchoCancellation { get; set; } = false;
-    
+
     private string SignalingState { get; set; } = "Disconnected";
     private string WebRtcState { get; set; } = "Offline";
     private bool IsMicCaptured { get; set; } = false;
     private bool IsLoopbackActive { get; set; } = false;
-    
+
     private bool IsConnecting { get; set; } = false;
     private bool IsStreaming { get; set; } = false;
     private string? ErrorMessage { get; set; }
@@ -275,7 +269,7 @@
         {
             var uri = new Uri(NavigationManager.Uri);
             var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-            
+
             var secretVal = query["secret"];
             if (!string.IsNullOrEmpty(secretVal))
             {
@@ -338,6 +332,7 @@
         {
             ErrorMessage = $"Failed to load audio devices: {ex.Message}";
         }
+
         StateHasChanged();
     }
 
@@ -348,7 +343,7 @@
         {
             try
             {
-                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, BypassHardware, EnableEchoCancellation, OptimizeForVoice);
+                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, BypassHardware, OptimizeForVoice);
             }
             catch (Exception ex)
             {
@@ -369,32 +364,31 @@
         if (!string.IsNullOrWhiteSpace(SignalingUrl))
         {
             string url = SignalingUrl.Trim();
-            if (!url.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) && 
+            if (!url.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) &&
                 !url.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
             {
                 url = "wss://" + url;
             }
-            
+
             string cleanedUrl = url.TrimEnd('/');
             if (!cleanedUrl.EndsWith("/ws", StringComparison.OrdinalIgnoreCase))
             {
                 cleanedUrl = cleanedUrl + "/ws";
             }
-            
+
             SignalingUrl = cleanedUrl;
         }
 
         IsConnecting = true;
         SignalingState = "Connecting...";
-        
+
         try
         {
             await JSRuntime.InvokeVoidAsync(
-                "airMic.startStreaming", 
-                SignalingUrl, 
-                StreamSecret, 
-                BypassHardware, 
-                EnableEchoCancellation,
+                "airMic.startStreaming",
+                SignalingUrl,
+                StreamSecret,
+                BypassHardware,
                 SelectedDeviceId,
                 OptimizeForVoice,
                 _selfReference
@@ -428,6 +422,7 @@
         {
             SelectedDeviceId = AudioDevices.FirstOrDefault()?.DeviceId ?? string.Empty;
         }
+
         StateHasChanged();
     }
 
@@ -455,6 +450,7 @@
             IsLoopbackActive = false;
             WebRtcState = "Offline";
         }
+
         StateHasChanged();
     }
 
@@ -518,4 +514,5 @@
         public string DeviceId { get; set; } = string.Empty;
         public string Label { get; set; } = string.Empty;
     }
+
 }

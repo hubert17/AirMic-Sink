@@ -268,7 +268,7 @@ public class WebRtcReceiver : IDisposable
                 "OPUS", 
                 48000, 
                 2, 
-                "minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=1;maxaveragebitrate=16000;maxplaybackrate=16000;sprop-maxcapturerate=16000;ptime=10"
+                "minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=1;maxaveragebitrate=24000;maxplaybackrate=16000;sprop-maxcapturerate=16000;ptime=10"
             );
             var audioTrack = new MediaStreamTrack(SDPMediaTypesEnum.audio, false, new List<SDPAudioVideoMediaFormat> { audioFormat }, MediaStreamStatusEnum.SendRecv);
             _peerConnection.addTrack(audioTrack);

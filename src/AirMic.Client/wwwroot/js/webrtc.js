@@ -6,20 +6,21 @@ window.airMic = {
     audioElement: null,
     remoteCandidatesQueue: [],
 
-    async startStreaming(signalingUrl, streamSecret, bypassHardware, enableEchoCancellation, selectedDeviceId, optimizeForVoice, dotNetRef) {
+    async startStreaming(signalingUrl, streamSecret, bypassHardware, selectedDeviceId, optimizeForVoice, dotNetRef) {
         this.dotNetRef = dotNetRef;
         this.optimizeForVoice = optimizeForVoice;
-        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "enableEchoCancellation =", enableEchoCancellation, "selectedDeviceId =", selectedDeviceId, "optimizeForVoice =", optimizeForVoice);
+        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "selectedDeviceId =", selectedDeviceId, "optimizeForVoice =", optimizeForVoice);
         try {
             // 1. Acquire local audio stream with latency-optimized constraints
             const constraints = {
                 audio: {
                     ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
-                    echoCancellation: enableEchoCancellation,
+                    echoCancellation: false,
                     ...(optimizeForVoice ? {
                         noiseSuppression: true,
                         autoGainControl: true,
                         channelCount: 1,
+                        sampleRate: 16000,
                         latency: 0
                     } : (bypassHardware ? {
                         noiseSuppression: false,
@@ -181,9 +182,9 @@ window.airMic = {
                         if (!params.encodings) {
                             params.encodings = [{}];
                         }
-                        params.encodings[0].maxBitrate = 16000;
+                        params.encodings[0].maxBitrate = 24000;
                         await audioSender.setParameters(params);
-                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 16000 bps for voice.");
+                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 24000 bps for voice.");
                     }
                 } catch (err) {
                     console.warn("[JS] Failed to apply audio encoder parameters:", err);
@@ -315,7 +316,7 @@ window.airMic = {
         navigator.mediaDevices.addEventListener('devicechange', this.deviceChangeListener);
     },
 
-    async changeAudioDevice(selectedDeviceId, bypassHardware, enableEchoCancellation, optimizeForVoice) {
+    async changeAudioDevice(selectedDeviceId, bypassHardware, optimizeForVoice) {
         console.log("[JS] Changing audio device to:", selectedDeviceId, "optimizeForVoice =", optimizeForVoice);
         if (!this.localStream) return;
         
@@ -329,11 +330,12 @@ window.airMic = {
             const constraints = {
                 audio: {
                     ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
-                    echoCancellation: enableEchoCancellation,
+                    echoCancellation: false,
                     ...(optimizeForVoice ? {
                         noiseSuppression: true,
                         autoGainControl: true,
                         channelCount: 1,
+                        sampleRate: 16000,
                         latency: 0
                     } : (bypassHardware ? {
                         noiseSuppression: false,
