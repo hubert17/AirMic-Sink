@@ -229,80 +229,80 @@ class Program
         MMDevice? selectedInputDevice = null;
         MMDevice? selectedOutputDevice = null;
 
-        if (sortedInputs.Count > 0)
+        if (sortedOutputs.Count > 0)
         {
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("=== Select Audio Input Device ===");
-            for (int i = 0; i < sortedInputs.Count; i++)
+            Console.WriteLine("=== Select Audio Output Device (Speaker) ===");
+            for (int i = 0; i < sortedOutputs.Count; i++)
             {
-                Console.WriteLine($"{i + 1}. {sortedInputs[i].FriendlyName}");
+                Console.WriteLine($"{i + 1}. {sortedOutputs[i].FriendlyName}");
             }
-            Console.Write($"Enter choice (1-{sortedInputs.Count}) or leave blank for default [Default: 1]: ");
+            Console.Write($"Enter choice (1-{sortedOutputs.Count}) or leave blank for default [Default: 1]: ");
             Console.ResetColor();
             
-            string? inputChoice = Console.ReadLine()?.Trim();
-            int selectedInputIndex = 0;
-            if (!string.IsNullOrEmpty(inputChoice))
+            string? outputChoice = Console.ReadLine()?.Trim();
+            int selectedOutputIndex = 0;
+            if (!string.IsNullOrEmpty(outputChoice))
             {
-                if (int.TryParse(inputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedInputs.Count)
+                if (int.TryParse(outputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedOutputs.Count)
                 {
-                    selectedInputIndex = parsedIndex - 1;
+                    selectedOutputIndex = parsedIndex - 1;
                 }
             }
-            selectedInputDevice = sortedInputs[selectedInputIndex];
+            selectedOutputDevice = sortedOutputs[selectedOutputIndex];
             Console.WriteLine();
 
-            if (sortedOutputs.Count > 0)
+            if (sortedInputs.Count > 0)
             {
-                int defaultOutputIndex = 0;
-                if ((string.IsNullOrEmpty(inputChoice) || inputChoice == "1") && sortedOutputs.Count > 1)
+                int defaultInputIndex = 0;
+                if ((string.IsNullOrEmpty(outputChoice) || outputChoice == "1") && sortedInputs.Count > 1)
                 {
-                    defaultOutputIndex = 1;
+                    defaultInputIndex = 1;
                 }
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("=== Select Audio Output Device ===");
-                for (int i = 0; i < sortedOutputs.Count; i++)
+                Console.WriteLine("=== Select Audio Input Device (Microphone) ===");
+                for (int i = 0; i < sortedInputs.Count; i++)
                 {
-                    Console.WriteLine($"{i + 1}. {sortedOutputs[i].FriendlyName}");
+                    Console.WriteLine($"{i + 1}. {sortedInputs[i].FriendlyName}");
                 }
-                Console.Write($"Enter choice (1-{sortedOutputs.Count}) or leave blank for default [Default: {defaultOutputIndex + 1}]: ");
+                Console.Write($"Enter choice (1-{sortedInputs.Count}) or leave blank for default [Default: {defaultInputIndex + 1}]: ");
                 Console.ResetColor();
 
-                string? outputChoice = Console.ReadLine()?.Trim();
-                int selectedOutputIndex = defaultOutputIndex;
-                if (!string.IsNullOrEmpty(outputChoice))
+                string? inputChoice = Console.ReadLine()?.Trim();
+                int selectedInputIndex = defaultInputIndex;
+                if (!string.IsNullOrEmpty(inputChoice))
                 {
-                    if (int.TryParse(outputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedOutputs.Count)
+                    if (int.TryParse(inputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedInputs.Count)
                     {
-                        selectedOutputIndex = parsedIndex - 1;
+                        selectedInputIndex = parsedIndex - 1;
                     }
                 }
-                selectedOutputDevice = sortedOutputs[selectedOutputIndex];
+                selectedInputDevice = sortedInputs[selectedInputIndex];
             }
         }
         else
         {
-            if (sortedOutputs.Count > 0)
+            if (sortedInputs.Count > 0)
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("=== Select Audio Output Device ===");
-                for (int i = 0; i < sortedOutputs.Count; i++)
+                Console.WriteLine("=== Select Audio Input Device (Microphone) ===");
+                for (int i = 0; i < sortedInputs.Count; i++)
                 {
-                    Console.WriteLine($"{i + 1}. {sortedOutputs[i].FriendlyName}");
+                    Console.WriteLine($"{i + 1}. {sortedInputs[i].FriendlyName}");
                 }
-                Console.Write($"Enter choice (1-{sortedOutputs.Count}) or leave blank for default [Default: 1]: ");
+                Console.Write($"Enter choice (1-{sortedInputs.Count}) or leave blank for default [Default: 1]: ");
                 Console.ResetColor();
 
-                string? outputChoice = Console.ReadLine()?.Trim();
-                int selectedOutputIndex = 0;
-                if (!string.IsNullOrEmpty(outputChoice))
+                string? inputChoice = Console.ReadLine()?.Trim();
+                int selectedInputIndex = 0;
+                if (!string.IsNullOrEmpty(inputChoice))
                 {
-                    if (int.TryParse(outputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedOutputs.Count)
+                    if (int.TryParse(inputChoice, out int parsedIndex) && parsedIndex >= 1 && parsedIndex <= sortedInputs.Count)
                     {
-                        selectedOutputIndex = parsedIndex - 1;
+                        selectedInputIndex = parsedIndex - 1;
                     }
                 }
-                selectedOutputDevice = sortedOutputs[selectedOutputIndex];
+                selectedInputDevice = sortedInputs[selectedInputIndex];
             }
         }
 
@@ -353,7 +353,7 @@ class Program
 
                 // 2. Instantiate and start WebRTC receiver
                 Console.WriteLine("[*] Starting WebRTC receiver connection...");
-                webRtc = new WebRtcReceiver(signalingUrl, streamSecret, sink);
+                webRtc = new WebRtcReceiver(signalingUrl, streamSecret, sink, selectedInputDevice?.ID);
 
                 var disconnectTcs = new TaskCompletionSource();
                 webRtc.OnDisconnected += (reason) =>
@@ -363,12 +363,12 @@ class Program
 
                 await webRtc.StartAsync();
 
-                string micName = selectedInputDevice?.FriendlyName ?? "Default";
-                string spkName = selectedOutputDevice?.FriendlyName ?? "Default";
+                string teamsMicName = GetTeamsCounterpartName(selectedOutputDevice);
+                string teamsSpkName = GetTeamsCounterpartName(selectedInputDevice);
                 
                 string title = "Set the following for your call/meeting app:";
-                string micText = $"  mic input:   {micName}";
-                string spkText = $"  speaker out: {spkName}";
+                string spkText = $"  speaker out: {teamsSpkName}";
+                string micText = $"  mic input:   {teamsMicName}";
 
                 int boxWidth = Math.Max(55, Math.Max(micText.Length + 4, spkText.Length + 4));
                 string borderLine = new string('─', boxWidth);
@@ -379,14 +379,14 @@ class Program
                 Console.ResetColor();
 
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.Write("  mic input:   ");
-                Console.ResetColor();
-                Console.WriteLine(micName);
-
-                Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Write("  speaker out: ");
                 Console.ResetColor();
-                Console.WriteLine(spkName);
+                Console.WriteLine(teamsSpkName);
+
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Write("  mic input:   ");
+                Console.ResetColor();
+                Console.WriteLine(teamsMicName);
 
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine(borderLine);
@@ -497,5 +497,16 @@ class Program
         }
 
         return null;
+    }
+
+    private static string GetTeamsCounterpartName(MMDevice? device)
+    {
+        if (device == null) return "Default";
+        string name = device.FriendlyName;
+        if (name.Contains("CABLE Input")) return "CABLE Output (VB-Audio Virtual Cable)";
+        if (name.Contains("CABLE Output")) return "CABLE Input (VB-Audio Virtual Cable)";
+        if (name.Contains("CABLE-B Input")) return "CABLE-B Output (VB-Audio Virtual Cable B)";
+        if (name.Contains("CABLE-B Output")) return "CABLE-B Input (VB-Audio Virtual Cable B)";
+        return name;
     }
 }

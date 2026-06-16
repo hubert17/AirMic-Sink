@@ -3,7 +3,7 @@
 @inject IJSRuntime JSRuntime
 @implements IDisposable
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="mt-12">
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
     <MudGrid>
         <!-- Title and Logo -->
         <MudItem xs="12" Class="d-flex flex-column align-center justify-center mb-4 text-center">
@@ -96,6 +96,13 @@
                         <!-- Toggle Options -->
                         <MudItem xs="12" Class="mt-n5">
                             <MudDivider Style="background-color: rgba(255,255,255,0.05); margin: 8px 0;" />
+                            <MudSwitch @bind-Value="OptimizeForVoice" 
+                                       Color="Color.Primary" 
+                                       Label="Optimize for Voice Speech" 
+                                       Disabled="IsConnecting || IsStreaming" />
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px; margin-bottom: 12px;">
+                                Recommended: Caps bitrate (16kbps) and limits frequency response to voice range (16kHz), lowering latency and bandwidth significantly.
+                            </MudText>
                             <MudSwitch @bind-Value="EnableEchoCancellation" 
                                        Color="Color.Primary" 
                                        Label="Enable Echo Cancellation" 
@@ -108,7 +115,7 @@
                                        Label="Bypass Other Hardware Processing" 
                                        Disabled="IsConnecting || IsStreaming" />
                             <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px;">
-                                Recommended: Turning this on bypasses mobile noise suppression and automatic gain control, reducing CPU overhead.
+                                Recommended: Turning this on bypasses mobile noise suppression and automatic gain control, reducing CPU overhead (overridden if Voice Optimization is enabled).
                             </MudText>
                         </MudItem>
 
@@ -235,6 +242,7 @@
 @code {
     private string SignalingUrl { get; set; } = "ws://localhost:8443/ws";
     private string StreamSecret { get; set; } = "MySuperSecretKey123";
+    private bool OptimizeForVoice { get; set; } = true;
     private bool BypassHardware { get; set; } = true;
     private bool EnableEchoCancellation { get; set; } = false;
     
@@ -340,7 +348,7 @@
         {
             try
             {
-                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, BypassHardware, EnableEchoCancellation);
+                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, BypassHardware, EnableEchoCancellation, OptimizeForVoice);
             }
             catch (Exception ex)
             {
@@ -388,6 +396,7 @@
                 BypassHardware, 
                 EnableEchoCancellation,
                 SelectedDeviceId,
+                OptimizeForVoice,
                 _selfReference
             );
         }

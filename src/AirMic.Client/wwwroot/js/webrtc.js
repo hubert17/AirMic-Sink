@@ -6,20 +6,26 @@ window.airMic = {
     audioElement: null,
     remoteCandidatesQueue: [],
 
-    async startStreaming(signalingUrl, streamSecret, bypassHardware, enableEchoCancellation, selectedDeviceId, dotNetRef) {
+    async startStreaming(signalingUrl, streamSecret, bypassHardware, enableEchoCancellation, selectedDeviceId, optimizeForVoice, dotNetRef) {
         this.dotNetRef = dotNetRef;
-        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "enableEchoCancellation =", enableEchoCancellation, "selectedDeviceId =", selectedDeviceId);
+        this.optimizeForVoice = optimizeForVoice;
+        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "enableEchoCancellation =", enableEchoCancellation, "selectedDeviceId =", selectedDeviceId, "optimizeForVoice =", optimizeForVoice);
         try {
             // 1. Acquire local audio stream with latency-optimized constraints
             const constraints = {
                 audio: {
                     ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
                     echoCancellation: enableEchoCancellation,
-                    ...(bypassHardware ? {
+                    ...(optimizeForVoice ? {
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        latency: 0
+                    } : (bypassHardware ? {
                         noiseSuppression: false,
                         autoGainControl: false,
                         latency: 0
-                    } : {})
+                    } : {}))
                 }
             };
             
@@ -165,6 +171,25 @@ window.airMic = {
             });
             await this.peerConnection.setRemoteDescription(answer);
 
+            // Apply voice optimizations to RTCRtpSender if active
+            if (this.optimizeForVoice) {
+                try {
+                    const senders = this.peerConnection.getSenders();
+                    const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                    if (audioSender) {
+                        const params = audioSender.getParameters();
+                        if (!params.encodings) {
+                            params.encodings = [{}];
+                        }
+                        params.encodings[0].maxBitrate = 16000;
+                        await audioSender.setParameters(params);
+                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 16000 bps for voice.");
+                    }
+                } catch (err) {
+                    console.warn("[JS] Failed to apply audio encoder parameters:", err);
+                }
+            }
+
             // Drain queued remote candidates
             console.log(`[JS] Draining ${this.remoteCandidatesQueue.length} queued remote candidates.`);
             while (this.remoteCandidatesQueue.length > 0) {
@@ -290,9 +315,11 @@ window.airMic = {
         navigator.mediaDevices.addEventListener('devicechange', this.deviceChangeListener);
     },
 
-    async changeAudioDevice(selectedDeviceId, bypassHardware, enableEchoCancellation) {
-        console.log("[JS] Changing audio device to:", selectedDeviceId);
+    async changeAudioDevice(selectedDeviceId, bypassHardware, enableEchoCancellation, optimizeForVoice) {
+        console.log("[JS] Changing audio device to:", selectedDeviceId, "optimizeForVoice =", optimizeForVoice);
         if (!this.localStream) return;
+        
+        this.optimizeForVoice = optimizeForVoice;
         
         try {
             // Stop current local track(s)
@@ -303,11 +330,16 @@ window.airMic = {
                 audio: {
                     ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
                     echoCancellation: enableEchoCancellation,
-                    ...(bypassHardware ? {
+                    ...(optimizeForVoice ? {
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        latency: 0
+                    } : (bypassHardware ? {
                         noiseSuppression: false,
                         autoGainControl: false,
                         latency: 0
-                    } : {})
+                    } : {}))
                 }
             };
             
