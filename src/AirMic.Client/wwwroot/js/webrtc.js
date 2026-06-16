@@ -19,8 +19,8 @@ window.airMic = {
                     ...(optimizeForVoice ? {
                         noiseSuppression: true,
                         autoGainControl: true,
-                        channelCount: 1,
-                        sampleRate: 16000,
+                        channelCount: { ideal: 1 },
+                        sampleRate: { ideal: 16000 },
                         latency: 0
                     } : (bypassHardware ? {
                         noiseSuppression: false,
@@ -334,8 +334,8 @@ window.airMic = {
                     ...(optimizeForVoice ? {
                         noiseSuppression: true,
                         autoGainControl: true,
-                        channelCount: 1,
-                        sampleRate: 16000,
+                        channelCount: { ideal: 1 },
+                        sampleRate: { ideal: 16000 },
                         latency: 0
                     } : (bypassHardware ? {
                         noiseSuppression: false,
