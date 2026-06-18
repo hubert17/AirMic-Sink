@@ -28,89 +28,107 @@
                 <MudCardContent Class="pa-5">
                     <MudGrid>
                         <!-- Form Fields -->
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="SignalingUrl"
-                                          Label="Server URL"
-                                          Variant="Variant.Outlined"
-                                          Adornment="Adornment.Start"
-                                          AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
-                                          Disabled="IsConnecting || IsStreaming"
-                                          Placeholder="wss://signaling.yourdomain.com/ws"/>
-                        </MudItem>
-
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="StreamSecret"
-                                          Label="Stream Key"
-                                          Variant="Variant.Outlined"
-                                          InputType="InputType.Password"
-                                          Adornment="Adornment.Start"
-                                          AdornmentIcon="@Icons.Material.Filled.Lock"
-                                          Disabled="IsConnecting || IsStreaming"
-                                          Placeholder="Enter Stream Secret Key"/>
-                        </MudItem>
-
-                        <MudItem xs="12">
-                            <MudGrid Spacing="1" Class="align-center">
-                                <MudItem xs="10">
-                                    <MudSelect T="string"
-                                               Label="Audio Input Device"
+                        @if (!IsStreaming)
+                        {
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="SignalingUrl"
+                                               Label="Server URL"
                                                Variant="Variant.Outlined"
-                                               AnchorOrigin="Origin.BottomLeft"
-                                               TransformOrigin="Origin.TopLeft"
                                                Adornment="Adornment.Start"
-                                               AdornmentIcon="@Icons.Material.Filled.Mic"
-                                               Value="SelectedDeviceId"
-                                               ValueChanged="OnSelectedDeviceChanged"
-                                               Disabled="IsConnecting || IsStreaming">
-                                        @if (!AudioDevices.Any())
-                                        {
-                                            <MudSelectItem Value="@(string.Empty)">No audio devices found</MudSelectItem>
-                                        }
-                                        else
-                                        {
-                                            @foreach (var device in AudioDevices)
+                                               AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
+                                               Disabled="IsConnecting || IsStreaming"
+                                               Placeholder="wss://signaling.yourdomain.com/ws"/>
+                            </MudItem>
+
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="StreamSecret"
+                                               Label="Stream Key"
+                                               Variant="Variant.Outlined"
+                                               InputType="InputType.Password"
+                                               Adornment="Adornment.Start"
+                                               AdornmentIcon="@Icons.Material.Filled.Lock"
+                                               Disabled="IsConnecting || IsStreaming"
+                                               Placeholder="Enter Stream Secret Key"/>
+                            </MudItem>
+
+                            <MudItem xs="12">
+                                <MudGrid Spacing="1" Class="align-center">
+                                    <MudItem xs="10">
+                                        <MudSelect T="string"
+                                                   Label="Audio Input Device"
+                                                   Variant="Variant.Outlined"
+                                                   AnchorOrigin="Origin.BottomLeft"
+                                                   TransformOrigin="Origin.TopLeft"
+                                                   Adornment="Adornment.Start"
+                                                   AdornmentIcon="@Icons.Material.Filled.Mic"
+                                                   Value="SelectedDeviceId"
+                                                   ValueChanged="OnSelectedDeviceChanged"
+                                                   Disabled="IsConnecting || IsStreaming">
+                                            @if (!AudioDevices.Any())
                                             {
-                                                <MudSelectItem Value="@device.DeviceId">@device.Label</MudSelectItem>
+                                                <MudSelectItem Value="@(string.Empty)">No audio devices found</MudSelectItem>
                                             }
-                                        }
-                                    </MudSelect>
-                                </MudItem>
-                                <MudItem xs="2" Class="d-flex align-center justify-center">
-                                    <MudTooltip Text="Refresh devices">
-                                        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                                                       Color="Color.Primary"
-                                                       OnClick="LoadAudioDevices"
-                                                       Disabled="IsConnecting || IsStreaming"
-                                                       Style="margin-top: 6px;"/>
-                                    </MudTooltip>
-                                </MudItem>
-                            </MudGrid>
-                        </MudItem>
+                                            else
+                                            {
+                                                @foreach (var device in AudioDevices)
+                                                {
+                                                    <MudSelectItem Value="@device.DeviceId">@device.Label</MudSelectItem>
+                                                }
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="2" Class="d-flex align-center justify-center">
+                                        <MudTooltip Text="Refresh devices">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                                           Color="Color.Primary"
+                                                           OnClick="LoadAudioDevices"
+                                                           Disabled="IsConnecting || IsStreaming"
+                                                           Style="margin-top: 6px;"/>
+                                        </MudTooltip>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudItem>
 
-                        <MudItem xs="12" Class="mt-n5">
-                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 12px; font-style: italic;">
-                                @GetSelectedDeviceLabel()
-                            </MudText>
-                        </MudItem>
+                            <MudItem xs="12" Class="mt-n5">
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 12px; font-style: italic;">
+                                    @GetSelectedDeviceLabel()
+                                </MudText>
+                            </MudItem>
 
-                        <!-- Toggle Options -->
-                        <MudItem xs="12" Class="mt-n5">
-                            <MudDivider Style="background-color: rgba(255,255,255,0.05); margin: 8px 0;"/>
-                            <MudSwitch @bind-Value="OptimizeForVoice"
-                                       Color="Color.Primary"
-                                       Label="Voice-Speech Optimized Mode"
-                                       Disabled="IsConnecting || IsStreaming"/>
-                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px; margin-bottom: 12px;">
-                                Recommended: Standard setting for meetings. Keeps your voice sharp and stable while using very little network bandwidth.
-                            </MudText>
-                            <MudSwitch @bind-Value="BypassHardware"
-                                       Color="Color.Primary"
-                                       Label="Bypass Hardware Processing"
-                                       Disabled="IsConnecting || IsStreaming"/>
-                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px;">
-                                Recommended: Turning this on bypasses mobile noise suppression and automatic gain control, reducing CPU overhead.
-                            </MudText>
-                        </MudItem>
+                            <!-- Toggle Options -->
+                            <MudItem xs="12" Class="mt-n5">
+                                <MudDivider Style="background-color: rgba(255,255,255,0.05); margin: 8px 0;"/>
+                                <MudSwitch @bind-Value="OptimizeForVoice"
+                                           Color="Color.Primary"
+                                           Label="Voice-Speech Optimized Mode"
+                                           Disabled="IsConnecting || IsStreaming"/>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px; margin-bottom: 12px;">
+                                    Recommended: Standard setting for meetings. Keeps your voice sharp and stable while using very little network bandwidth.
+                                </MudText>
+                                <MudSwitch @bind-Value="BypassHardware"
+                                           Color="Color.Primary"
+                                           Label="Bypass Hardware Processing"
+                                           Disabled="IsConnecting || IsStreaming"/>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px;">
+                                    Recommended: Turning this on bypasses mobile noise suppression and automatic gain control, reducing CPU overhead.
+                                </MudText>
+                            </MudItem>
+                        }
+                        else
+                        {
+                            <!-- Server URL Label when connected -->
+                            <MudItem xs="12" Class="d-flex flex-column align-center justify-center text-center pt-4 mb-n3">
+                                <div class="d-flex align-center justify-center mt-4 mb">
+                                    <span class="connection-pulse mr-2"></span>
+                                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.5); font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;">
+                                        Connected Server
+                                    </MudText>
+                                </div>
+                                <MudText Typo="Typo.body1" Class="font-weight-bold" Style="color: #3b82f6; word-break: break-all;">
+                                    @SignalingUrl
+                                </MudText>
+                            </MudItem>
+                        }
 
                         <!-- Error Message Alert -->
                         @if (!string.IsNullOrEmpty(ErrorMessage))
@@ -172,7 +190,7 @@
                             </MudChip>
                         </MudItem>
                         <MudItem xs="6">
-                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">WebRTC Peer State</MudText>
+                            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">WebRTC Peer</MudText>
                             <MudChip T="string" Color="@GetWebRtcColor()" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Wifi">
                                 @WebRtcState
                             </MudChip>
@@ -304,6 +322,31 @@
     @@keyframes oled-fade-in {
         from { opacity: 0; }
         to { opacity: 1; }
+    }
+
+    .connection-pulse {
+        width: 8px;
+        height: 8px;
+        background-color: #2ecc71;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
+        animation: pulse-green 2s infinite;
+    }
+
+    @@keyframes pulse-green {
+        0% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
+        }
+        70% {
+            transform: scale(1);
+            box-shadow: 0 0 0 6px rgba(46, 204, 113, 0);
+        }
+        100% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+        }
     }
 </style>
 
