@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        rid: [win-x64, win-arm64]
+        rid: [win-x64, win-arm64, osx-arm64, osx-x64, linux-x64]
 
     steps:
       - name: Checkout Code
