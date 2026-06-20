@@ -91,7 +91,7 @@ public class WasapiExclusiveSink : IAudioBufferSink
     {
         _maxBacklogSeconds = maxBacklogSeconds;
         _targetCushionSeconds = targetCushionSeconds;
-        Console.WriteLine($"[WasapiExclusiveSink] Configured buffer thresholds: Max Backlog = {maxBacklogSeconds * 1000}ms, Cushion = {targetCushionSeconds * 1000}ms");
+        FileLogger.Log($"[WasapiExclusiveSink] Configured buffer thresholds: Max Backlog = {maxBacklogSeconds * 1000}ms, Cushion = {targetCushionSeconds * 1000}ms");
     }
 
     public void Write(byte[] pcmData)
