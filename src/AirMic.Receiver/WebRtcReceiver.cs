@@ -214,7 +214,7 @@ public class WebRtcReceiver : IDisposable
             // Configure dynamic encoder/decoder settings
             _opusDecoder = new OpusDecoder(48000, _channels);
             _opusEncoder = new OpusEncoder(48000, _channels, _optimizeForVoice ? OpusApplication.OPUS_APPLICATION_VOIP : OpusApplication.OPUS_APPLICATION_AUDIO);
-            _opusEncoder.Bitrate = _optimizeForVoice ? 32000 : 128000;
+            _opusEncoder.Bitrate = _optimizeForVoice ? 32000 : 64000;
 
             // Apply dynamic buffer splits (latency budget thresholds) to WASAPI output sink
             if (_optimizeForVoice)
@@ -354,7 +354,7 @@ public class WebRtcReceiver : IDisposable
             // - maxaveragebitrate: 32kbps for voice-optimized, 128kbps for stereo music.
             string opusParams = _optimizeForVoice 
                 ? "minptime=20;useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=0;maxaveragebitrate=32000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20"
-                : "minptime=20;useinbandfec=1;stereo=1;sprop-stereo=1;usedtx=0;maxaveragebitrate=128000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20";
+                : "minptime=20;useinbandfec=1;stereo=1;sprop-stereo=1;usedtx=0;maxaveragebitrate=64000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20";
 
             var audioFormat = new SDPAudioVideoMediaFormat(
                 SDPMediaTypesEnum.audio, 
