@@ -15,10 +15,11 @@ window.airMic = {
     noSleepVideo: null,
     wakeLockRequestPromise: null,
 
-    async startStreaming(signalingUrl, streamSecret, bypassHardware, selectedDeviceId, optimizeForVoice, dotNetRef) {
+    async startStreaming(signalingUrl, streamSecret, bypassHardware, selectedDeviceId, optimizeForVoice, isTestMode, dotNetRef) {
         this.dotNetRef = dotNetRef;
         this.optimizeForVoice = optimizeForVoice;
-        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "selectedDeviceId =", selectedDeviceId, "optimizeForVoice =", optimizeForVoice);
+        this.isTestMode = isTestMode;
+        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "selectedDeviceId =", selectedDeviceId, "optimizeForVoice =", optimizeForVoice, "isTestMode =", isTestMode);
         
         // Request Wake Lock and start silent audio immediately within user gesture context
         await this.requestWakeLock();
@@ -179,10 +180,11 @@ window.airMic = {
             // Send Offer
             const msg = {
                 type: "offer",
-                sdp: offer.sdp
+                sdp: offer.sdp,
+                isTest: this.isTestMode
             };
             this.websocket.send(JSON.stringify(msg));
-            console.log("[JS] SDP Offer sent.");
+            console.log("[JS] SDP Offer sent (isTest = " + this.isTestMode + ").");
         } catch (err) {
             console.error("[JS] Error initiating WebRTC connection", err);
             this.dotNetRef.invokeMethodAsync("OnError", "WebRTC initialization failed: " + err.message);

@@ -144,16 +144,25 @@
                         <MudItem xs="12" Class="d-flex justify-center mt-4">
                             @if (!IsConnecting && !IsStreaming)
                             {
-                                <MudButton id="start-stream-btn"
-                                           Variant="Variant.Filled"
-                                           Color="Color.Primary"
-                                           Size="Size.Large"
-                                           FullWidth="true"
-                                           StartIcon="@Icons.Material.Filled.PlayArrow"
-                                           OnClick="StartConnection"
-                                           Style="border-radius: 12px; height: 50px; background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
-                                    Start Audio Stream
-                                </MudButton>
+                                <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled" Style="width: 100%; border-radius: 12px; height: 50px; background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);">
+                                    <MudButton id="start-stream-btn"
+                                               Variant="Variant.Text"
+                                               Size="Size.Large"
+                                               FullWidth="true"
+                                               StartIcon="@Icons.Material.Filled.PlayArrow"
+                                               OnClick="() => StartConnection(false)"
+                                               Style="border-radius: 12px 0 0 12px; height: 50px; flex-grow: 1; color: white;">
+                                        Start Audio Stream
+                                    </MudButton>
+                                    <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown"
+                                             Style="align-self: auto; height: 50px;"
+                                             Color="Color.Inherit"
+                                             Dense="true"
+                                             AnchorOrigin="Origin.BottomRight"
+                                             TransformOrigin="Origin.TopRight">
+                                        <MudMenuItem OnClick="() => StartConnection(true)">Test Loopback</MudMenuItem>
+                                    </MudMenu>
+                                </MudButtonGroup>
                             }
                             else
                             {
@@ -164,7 +173,7 @@
                                            StartIcon="@Icons.Material.Filled.Stop"
                                            OnClick="StopConnection"
                                            Style="border-radius: 12px; height: 50px;">
-                                    Stop Stream
+                                    Stop @(IsTestMode ? "Test" : "Stream")
                                 </MudButton>
                             }
                         </MudItem>
@@ -203,8 +212,8 @@
                         </MudItem>
                         <MudItem xs="6">
                             <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">Remote Audio</MudText>
-                            <MudChip T="string" Color="@(IsLoopbackActive ? Color.Success : Color.Default)" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Hearing">
-                                @(IsLoopbackActive ? "Receiving" : "Offline")
+                            <MudChip T="string" Color="@(IsLoopbackActive ? Color.Success : (IsStreaming && IsTestMode ? Color.Info : Color.Default))" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Hearing">
+                                @(IsLoopbackActive ? "Receiving" : (IsStreaming && IsTestMode ? "Loopback Test" : "Offline"))
                             </MudChip>
                         </MudItem>
                     </MudGrid>
@@ -363,6 +372,7 @@
 
     private bool IsConnecting { get; set; } = false;
     private bool IsStreaming { get; set; } = false;
+    private bool IsTestMode { get; set; } = false;
     private string? ErrorMessage { get; set; }
     private bool ShowOledOverlay { get; set; } = false;
     private bool IsMobileDevice { get; set; } = false;
@@ -471,7 +481,7 @@
         }
     }
 
-    private async Task StartConnection()
+    private async Task StartConnection(bool isTest = false)
     {
         ErrorMessage = null;
         if (string.IsNullOrWhiteSpace(StreamSecret))
@@ -498,6 +508,7 @@
             SignalingUrl = cleanedUrl;
         }
 
+        IsTestMode = isTest;
         IsConnecting = true;
         SignalingState = "Connecting...";
 
@@ -510,6 +521,7 @@
                 BypassHardware,
                 SelectedDeviceId,
                 OptimizeForVoice,
+                IsTestMode,
                 _selfReference
             );
         }
@@ -569,6 +581,7 @@
             IsLoopbackActive = false;
             WebRtcState = "Offline";
             ShowOledOverlay = false;
+            IsTestMode = false;
         }
 
         StateHasChanged();
@@ -598,6 +611,7 @@
         SignalingState = "Disconnected";
         WebRtcState = "Offline";
         ShowOledOverlay = false;
+        IsTestMode = false;
         StateHasChanged();
     }
 

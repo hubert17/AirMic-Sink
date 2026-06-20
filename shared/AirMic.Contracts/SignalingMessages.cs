@@ -19,6 +19,11 @@ public class SignalingMessage
     /// Interactive Connectivity Establishment (ICE) candidate payload for "candidate" types.
     /// </summary>
     public IceCandidatePayload? Candidate { get; set; }
+
+    /// <summary>
+    /// If present, flags that this session is a loopback test.
+    /// </summary>
+    public bool? IsTest { get; set; }
 }
 
 /// <summary>

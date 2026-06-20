@@ -1,3 +1,4 @@
+#pragma warning disable CA1416
 using System;
 using System.Collections.Generic;
 using System.Net.WebSockets;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using System.IO;
 
 namespace AirMic.Receiver;
 
@@ -43,6 +45,21 @@ public class WebRtcReceiver : IDisposable
     private readonly short[] _pcmBuffer = new short[5760]; // Max Opus frame duration is 120ms (5760 samples @ 48kHz)
     private readonly Queue<short> _capturePcmQueue = new Queue<short>();
     private readonly object _captureLock = new object();
+
+    private bool _isTestMode = false;
+    private bool _isRecording = false;
+    private readonly List<byte> _recordedDataList = new List<byte>();
+    private readonly object _recordingLock = new object();
+
+    // Silence detection parameters
+    private const double SilenceThreshold = 0.015; // Amplitude threshold (0.0 to 1.0)
+    private const double SilenceDurationLimitSeconds = 1.2; // Silence duration to trigger playback
+    private DateTime _lastActiveTime = DateTime.MinValue;
+
+    private CancellationTokenSource? _playbackCts;
+    private Task? _playbackTask;
+    private volatile bool _isPlayingBack = false;
+    private IAudioBufferSink? _testPlaybackSink;
 
     public event Action<string>? OnDisconnected;
 
@@ -180,6 +197,40 @@ public class WebRtcReceiver : IDisposable
         if (message.Type == "offer")
         {
             Console.WriteLine("[*] Received SDP Offer. Preparing WebRTC connection...");
+            _isTestMode = message.IsTest == true;
+            _testPlaybackSink?.Dispose();
+            _testPlaybackSink = null;
+            if (_isTestMode)
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine("[*] Test Mode activated for this WebRTC session.");
+                Console.ResetColor();
+
+                // Initialize counterpart rendering sink if virtual cable matches
+                if (!string.IsNullOrEmpty(_captureDeviceId))
+                {
+                    string? counterpartId = GetCounterpartRenderDeviceId(_captureDeviceId);
+                    if (counterpartId != null)
+                    {
+                        try
+                        {
+                            var tempSink = new WasapiExclusiveSink();
+                            tempSink.Initialize(48000, 16, 1, counterpartId);
+                            tempSink.Start();
+                            _testPlaybackSink = tempSink;
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                            Console.WriteLine($"[*] Test Loopback: Created matching output sink for counterpart rendering device.");
+                            Console.ResetColor();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine($"[!] Warning: Failed to create test counterpart sink: {ex.Message}. Falling back to default output sink.");
+                            Console.ResetColor();
+                        }
+                    }
+                }
+            }
 
             // Cleanup any stale connection
             _peerConnection?.Close("reconnecting");
@@ -346,13 +397,159 @@ public class WebRtcReceiver : IDisposable
                 Buffer.BlockCopy(_pcmBuffer, 0, pcmBytes, 0, byteCount);
                 
                 // Write to WASAPI virtual audio device
-                _audioSink.Write(pcmBytes);
+                if (!_isTestMode || !_isPlayingBack)
+                {
+                    if (_testPlaybackSink != null)
+                    {
+                        _testPlaybackSink.Write(pcmBytes);
+                    }
+                    else
+                    {
+                        _audioSink.Write(pcmBytes);
+                    }
+                }
+
+                if (_isTestMode)
+                {
+                    // Calculate RMS of incoming audio frame
+                    double sum = 0;
+                    for (int i = 0; i < decodedSamples; i++)
+                    {
+                        double val = _pcmBuffer[i] / 32768.0;
+                        sum += val * val;
+                    }
+                    double rms = Math.Sqrt(sum / decodedSamples);
+                    bool isSilentFrame = rms < SilenceThreshold;
+
+                    if (!isSilentFrame)
+                    {
+                        _lastActiveTime = DateTime.UtcNow;
+
+                        if (!_isRecording)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                            Console.WriteLine("[*] Test Loopback: Client speech detected. Recording started.");
+                            Console.ResetColor();
+
+                            _isPlayingBack = false;
+
+                            // Cancel any running playback immediately when client starts speaking
+                            _playbackCts?.Cancel();
+                            _playbackCts?.Dispose();
+                            _playbackCts = null;
+
+                            lock (_recordingLock)
+                            {
+                                _recordedDataList.Clear();
+                            }
+                            _isRecording = true;
+                        }
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
             // Log occasionally or drop silently to avoid console flooding during high packet rates
             FileLogger.Log($"Opus Decoding Error: {ex.Message}", "ERROR");
+        }
+    }
+
+    private async Task PlaybackRecordedBufferAsync(byte[] recordedData, CancellationToken ct)
+    {
+        Console.ForegroundColor = ConsoleColor.Magenta;
+        Console.WriteLine($"[*] Test Loopback: Playback started. Total bytes to stream back: {recordedData.Length}");
+        Console.ResetColor();
+        FileLogger.Log($"Test Loopback: Playback task started. Total bytes to stream back: {recordedData.Length}");
+
+        try
+        {
+            // Convert recordedData (PCM bytes) to PCM shorts
+            int sampleCount = recordedData.Length / 2;
+            short[] pcmShorts = new short[sampleCount];
+            Buffer.BlockCopy(recordedData, 0, pcmShorts, 0, recordedData.Length);
+
+            int frameSize = 960; // 20ms of 48kHz PCM mono
+            int offset = 0;
+            int framesSent = 0;
+
+            byte[] outputBuffer = new byte[1275];
+            short[] pcmFrame = new short[frameSize];
+
+            while (offset < pcmShorts.Length && !ct.IsCancellationRequested)
+            {
+                int samplesToCopy = Math.Min(frameSize, pcmShorts.Length - offset);
+                
+                // If the last frame is partial, pad it with silence (zeros)
+                if (samplesToCopy < frameSize)
+                {
+                    Array.Clear(pcmFrame, 0, frameSize);
+                }
+                Array.Copy(pcmShorts, offset, pcmFrame, 0, samplesToCopy);
+
+                // 1. Play back locally to receiver speaker output (if any)
+                byte[] chunk = new byte[samplesToCopy * 2];
+                Buffer.BlockCopy(pcmFrame, 0, chunk, 0, chunk.Length);
+                _audioSink.Write(chunk);
+
+                // 2. Encode and stream back to the remote client over WebRTC
+                int bytesEncoded = 0;
+                try
+                {
+                    var encoder = _opusEncoder;
+                    if (encoder != null)
+                    {
+                        lock (encoder)
+                        {
+                            bytesEncoded = encoder.Encode(pcmFrame, 0, frameSize, outputBuffer, 0, outputBuffer.Length);
+                        }
+                    }
+                }
+                catch (Exception encEx)
+                {
+                    FileLogger.Log($"Opus Encoding Error during loopback playback: {encEx.Message}", "ERROR");
+                }
+
+                if (bytesEncoded > 0 && _peerConnection != null)
+                {
+                    byte[] opusPacket = new byte[bytesEncoded];
+                    Buffer.BlockCopy(outputBuffer, 0, opusPacket, 0, bytesEncoded);
+
+                    _peerConnection.SendAudio(960, opusPacket);
+                    framesSent++;
+                }
+
+                offset += frameSize;
+
+                // Wait 20ms to match real-time audio playback speed
+                await Task.Delay(20, ct);
+            }
+
+            if (!ct.IsCancellationRequested)
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine($"[*] Test Loopback: Playback finished. Sent {framesSent} audio frames.");
+                Console.ResetColor();
+                FileLogger.Log($"Test Loopback: Playback finished. Sent {framesSent} audio frames.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("[*] Test Loopback: Playback cancelled.");
+            Console.ResetColor();
+            FileLogger.Log("Test Loopback: Playback cancelled.");
+        }
+        catch (Exception ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[!] Test Loopback Playback Error: {ex.Message}");
+            Console.ResetColor();
+            FileLogger.Log($"Test Loopback Playback Error: {ex.Message}", "ERROR", ex);
+        }
+        finally
+        {
+            _isPlayingBack = false;
         }
     }
 
@@ -438,6 +635,51 @@ public class WebRtcReceiver : IDisposable
     private void WasapiCapture_DataAvailable(object? sender, WaveInEventArgs e)
     {
         if (e.BytesRecorded == 0 || _opusEncoder == null || _peerConnection == null) return;
+
+        if (_isTestMode && _isRecording)
+        {
+            var silenceElapsed = (DateTime.UtcNow - _lastActiveTime).TotalSeconds;
+            if (silenceElapsed >= SilenceDurationLimitSeconds)
+            {
+                _isRecording = false;
+                byte[] recordedBytes;
+                lock (_recordingLock)
+                {
+                    recordedBytes = _recordedDataList.ToArray();
+                    _recordedDataList.Clear();
+                }
+
+                if (recordedBytes.Length > 0)
+                {
+                    try
+                    {
+                        string filepath = Path.Combine(Directory.GetCurrentDirectory(), "loopback_test.wav");
+                        using (var writer = new WaveFileWriter(filepath, new WaveFormat(48000, 16, 1)))
+                        {
+                            writer.Write(recordedBytes, 0, recordedBytes.Length);
+                        }
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.WriteLine($"[*] Test Loopback: Silence detected ({silenceElapsed:F2}s). Recording stopped. Audio saved to: {filepath}");
+                        Console.ResetColor();
+
+                        // Trigger audio loopback playback
+                        _playbackCts?.Cancel();
+                        _playbackCts?.Dispose();
+                        _isPlayingBack = true;
+                        _playbackCts = new CancellationTokenSource();
+                        FileLogger.Log($"Test Loopback: Silence detected ({silenceElapsed:F2}s). Starting loopback playback task with {recordedBytes.Length} bytes.");
+                        _playbackTask = Task.Run(() => PlaybackRecordedBufferAsync(recordedBytes, _playbackCts.Token));
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"[!] Failed to save or play loopback audio: {ex.Message}");
+                        Console.ResetColor();
+                    }
+                }
+                return;
+            }
+        }
 
         var waveFormat = _wasapiCapture?.WaveFormat;
         if (waveFormat == null) return;
@@ -528,6 +770,86 @@ public class WebRtcReceiver : IDisposable
             pcmShorts[i] = (short)(val * short.MaxValue);
         }
 
+        if (_isTestMode)
+        {
+            if (_isRecording)
+            {
+                lock (_recordingLock)
+                {
+                    byte[] pcmBytes = new byte[pcmShorts.Length * 2];
+                    Buffer.BlockCopy(pcmShorts, 0, pcmBytes, 0, pcmBytes.Length);
+                    _recordedDataList.AddRange(pcmBytes);
+
+                    // Limit recording to 30 seconds max to prevent memory leakage
+                    if (_recordedDataList.Count >= 48000 * 2 * 30)
+                    {
+                        _isRecording = false;
+                        byte[] recordedBytes = _recordedDataList.ToArray();
+                        _recordedDataList.Clear();
+
+                        try
+                        {
+                            string filepath = Path.Combine(Directory.GetCurrentDirectory(), "loopback_test.wav");
+                            using (var writer = new WaveFileWriter(filepath, new WaveFormat(48000, 16, 1)))
+                            {
+                                writer.Write(recordedBytes, 0, recordedBytes.Length);
+                            }
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                            Console.WriteLine($"[*] Test Loopback: Maximum recording duration reached (30s). Recording stopped. Audio saved to: {filepath}");
+                            Console.ResetColor();
+
+                            // Trigger audio loopback playback
+                            _playbackCts?.Cancel();
+                            _playbackCts?.Dispose();
+                            _isPlayingBack = true;
+                            _playbackCts = new CancellationTokenSource();
+                            FileLogger.Log($"Test Loopback: Maximum recording duration reached (30s). Starting loopback playback task with {recordedBytes.Length} bytes.");
+                            _playbackTask = Task.Run(() => PlaybackRecordedBufferAsync(recordedBytes, _playbackCts.Token));
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"[!] Failed to save or play loopback audio: {ex.Message}");
+                            Console.ResetColor();
+                        }
+                    }
+                }
+            }
+
+            // Send silent Opus packets back to the client browser while NOT playing back
+            // to keep the WebRTC connection active and prevent ICE/DTLS timeouts.
+            if (!_isPlayingBack)
+            {
+                lock (_captureLock)
+                {
+                    foreach (var sample in pcmShorts)
+                    {
+                        _capturePcmQueue.Enqueue(sample);
+                    }
+
+                    int frameSize = 960;
+                    byte[] silentOpusPacket = new byte[] { 0xf8, 0xff, 0xfe };
+
+                    while (_capturePcmQueue.Count >= frameSize)
+                    {
+                        for (int i = 0; i < frameSize; i++)
+                        {
+                            _capturePcmQueue.Dequeue();
+                        }
+                        _peerConnection?.SendAudio(960, silentOpusPacket);
+                    }
+                }
+            }
+            else
+            {
+                lock (_captureLock)
+                {
+                    _capturePcmQueue.Clear();
+                }
+            }
+            return; // Skip streaming back to the client during test loopback
+        }
+
         // Enqueue PCM short samples and feed the encoder in 20ms chunks (960 samples @ 48kHz Mono)
         lock (_captureLock)
         {
@@ -575,6 +897,12 @@ public class WebRtcReceiver : IDisposable
 
     public void Dispose()
     {
+        _testPlaybackSink?.Dispose();
+        _testPlaybackSink = null;
+
+        _playbackCts?.Cancel();
+        _playbackCts?.Dispose();
+
         _cts?.Cancel();
         _cts?.Dispose();
         
@@ -601,6 +929,35 @@ public class WebRtcReceiver : IDisposable
         }
         
         GC.SuppressFinalize(this);
+    }
+
+    private string? GetCounterpartRenderDeviceId(string captureDeviceId)
+    {
+        try
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            var captureDevice = enumerator.GetDevice(captureDeviceId);
+            string captureName = captureDevice.FriendlyName;
+
+            string targetNamePart = "";
+            if (captureName.Contains("CABLE-B Output", StringComparison.OrdinalIgnoreCase)) 
+                targetNamePart = "CABLE-B Input";
+            else if (captureName.Contains("CABLE Output", StringComparison.OrdinalIgnoreCase)) 
+                targetNamePart = "CABLE Input";
+            else 
+                return null;
+
+            var renderDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            foreach (var dev in renderDevices)
+            {
+                if (dev.FriendlyName.Contains(targetNamePart, StringComparison.OrdinalIgnoreCase))
+                {
+                    return dev.ID;
+                }
+            }
+        }
+        catch {}
+        return null;
     }
 }
 
