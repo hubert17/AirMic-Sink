@@ -307,7 +307,10 @@ public class WebRtcReceiver : IDisposable
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine("[+] WebRTC Audio Stream established successfully!");
                     Console.ResetColor();
-                    StartLoopbackCapture();
+                    if (_isTestMode)
+                    {
+                        StartLoopbackCapture();
+                    }
                 }
                 else if (state == RTCPeerConnectionState.closed || state == RTCPeerConnectionState.failed)
                 {
