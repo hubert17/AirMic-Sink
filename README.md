@@ -54,15 +54,27 @@ The pipeline is organized as a unified .NET Monorepo split into highly specializ
 
 ---
 
-## 🏎️ Low-Latency Engineering Mandate
+## 🏎️ Engineering Blueprint & Latency Optimization
 
-To preserve deterministic real-time communication across continents, the engine enforces strict low-latency constraints across all layers:
+To preserve deterministic real-time communication across networks, the engine enforces specialized, lightweight constraints across all layers:
 
-### 1. Audio Processing & Codec Blueprint
+### 1. Dual Audio Streaming Modes
+* **Voice-Speech Optimized Mode (Recommended):** Tailored for meetings and calls. Captures at **48,000 Hz Mono** at a clamped bitrate of **24 kbps**. It enables browser echo cancellation, noise suppression, and automatic gain control to deliver highly intelligible speech while using extremely low network bandwidth.
+* **Music / High-Fidelity Mode:** Tailored for rich, unfiltered sound. Captures raw **48,000 Hz Stereo** at a bitrate of **64 kbps**. It disables all client-side browser DSP audio filters to ensure raw, unmodified audio delivery.
 
-* **Codec Selection:** Explicitly locked to the **Opus** codec configured for **VoIP/Low Delay** optimization modes.
-* **Packetization Rate (ptime):** Hard-capped at **10ms to 20ms** frames to maximize fast delivery while avoiding excessive IP packet header overhead.
-* **Hardware Bypassing:** Mobile client disables native hardware processing variations (Echo Cancellation, Automatic Gain Control, Noise Suppression) at the edge capture point. This moves raw processing out of high-overhead mobile loops and defers advanced filtering downstream to Microsoft Teams/Zoom.
+### 2. Dynamic Playout Buffer Hysteresis
+To prevent chattering and dropout oscillation under network jitter, the receiver-side WASAPI exclusive playback queue implements a dynamic watermark threshold:
+* **Voice Mode:** Limits backlog to a **200ms** trigger, truncating down to a **120ms** low-watermark cushion.
+* **Music Mode:** Prioritizes absolute stability, using a **300ms** trigger and a **135ms** cushion.
+
+### 3. Audio Processing & Codec Blueprint
+* **Codec Selection:** Locked to the high-performance **Opus** codec.
+* **Packetization Rate (ptime):** Configured at **20ms** frame sizes for optimal packet header overhead vs network latency.
+* **Sample Rate Lock:** Enforced at a unified **48,000 Hz** across the pipeline to eliminate CPU-intensive resampling filters at the client-side capture and receiver-side playback.
+
+### 4. Diagnostic Log Redirection & Loopback Protection
+* **Clean Console Output:** The receiver's console output is kept clear of clutter—displaying only connection transitions and active error alerts. Intermediate SDP negotiations, ICE updates, and WASAPI buffer thresholds are redirected to structured logs in the `logs/` directory.
+* **Restricted Loopback Testing:** Loopback recording and streaming back are restricted exclusively to `_isTestMode` sessions. During normal stream usage, loopback capture is fully deactivated to protect resources and prevent audio bleed.
 
 ### 2. Network & Traversal Strategy
 
