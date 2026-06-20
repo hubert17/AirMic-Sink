@@ -20,7 +20,7 @@ window.airMic = {
         this.optimizeForVoice = optimizeForVoice;
         this.isTestMode = isTestMode;
         console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "selectedDeviceId =", selectedDeviceId, "optimizeForVoice =", optimizeForVoice, "isTestMode =", isTestMode);
-        
+
         // Request Wake Lock and start silent audio immediately within user gesture context
         await this.requestWakeLock();
         this.startSilentAudio();
@@ -31,21 +31,23 @@ window.airMic = {
             const constraints = {
                 audio: {
                     ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
-                    echoCancellation: false,
+                    echoCancellation: optimizeForVoice,
                     ...(optimizeForVoice ? {
                         noiseSuppression: true,
                         autoGainControl: true,
                         channelCount: { ideal: 1 },
                         sampleRate: { ideal: 16000 },
                         latency: 0
-                    } : (bypassHardware ? {
-                        noiseSuppression: false,
-                        autoGainControl: false,
+                    } : {
+                        noiseSuppression: !bypassHardware,
+                        autoGainControl: !bypassHardware,
+                        channelCount: { ideal: 2 },
+                        sampleRate: { ideal: 48000 },
                         latency: 0
-                    } : {}))
+                    })
                 }
             };
-            
+
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
             console.log("[JS] Local microphone captured successfully.");
             this.dotNetRef.invokeMethodAsync("OnMicCaptured", true);
@@ -118,7 +120,7 @@ window.airMic = {
                 const state = this.peerConnection.connectionState;
                 console.log("[JS] WebRTC connection state changed:", state);
                 this.dotNetRef.invokeMethodAsync("OnWebRtcStateChanged", state);
-                
+
                 if (state === "connected") {
                     // Re-request and start just in case they were released during a brief disconnect
                     await this.requestWakeLock();
@@ -131,7 +133,7 @@ window.airMic = {
                     this.stopVideoWakeLock();
                     this.stopInactivityTracker();
                 }
-                
+
                 if (state === "failed" || state === "closed" || state === "disconnected") {
                     this.cleanup();
                 }
@@ -164,7 +166,7 @@ window.airMic = {
                     this.audioElement.controls = false;
                     document.body.appendChild(this.audioElement);
                 }
-                
+
                 if (event.streams && event.streams[0]) {
                     this.audioElement.srcObject = event.streams[0];
                 } else {
@@ -175,13 +177,35 @@ window.airMic = {
 
             // Create Offer
             const offer = await this.peerConnection.createOffer();
+            
+            // Force dynamic Opus settings on the SDP Offer to negotiate correct encoder/decoder parameters
+            let sdp = offer.sdp;
+            const match = sdp.match(/a=rtpmap:(\d+)\s+opus\/48000\/2/i);
+            if (match) {
+                const pt = match[1];
+                const opusParams = this.optimizeForVoice 
+                    ? "minptime=20;useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=0;maxaveragebitrate=32000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20"
+                    : "minptime=20;useinbandfec=1;stereo=1;sprop-stereo=1;usedtx=0;maxaveragebitrate=128000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20";
+                
+                const fmtpRegex = new RegExp(`a=fmtp:${pt}\\s+.*`);
+                if (sdp.match(fmtpRegex)) {
+                    sdp = sdp.replace(fmtpRegex, `a=fmtp:${pt} ${opusParams}`);
+                } else {
+                    const rtpmapRegex = new RegExp(`a=rtpmap:${pt}\\s+opus\\/48000\\/2`, 'i');
+                    sdp = sdp.replace(rtpmapRegex, `a=rtpmap:${pt} opus/48000/2\r\na=fmtp:${pt} ${opusParams}`);
+                }
+                console.log("[JS] SDP Offer: Forced Opus payload " + pt + " params -> " + opusParams);
+            }
+            offer.sdp = sdp;
+
             await this.peerConnection.setLocalDescription(offer);
 
             // Send Offer
             const msg = {
                 type: "offer",
                 sdp: offer.sdp,
-                isTest: this.isTestMode
+                isTest: this.isTestMode,
+                optimizeForVoice: this.optimizeForVoice
             };
             this.websocket.send(JSON.stringify(msg));
             console.log("[JS] SDP Offer sent (isTest = " + this.isTestMode + ").");
@@ -203,23 +227,26 @@ window.airMic = {
             });
             await this.peerConnection.setRemoteDescription(answer);
 
-            // Apply voice optimizations to RTCRtpSender if active
-            if (this.optimizeForVoice) {
-                try {
-                    const senders = this.peerConnection.getSenders();
-                    const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-                    if (audioSender) {
-                        const params = audioSender.getParameters();
-                        if (!params.encodings) {
-                            params.encodings = [{}];
-                        }
-                        params.encodings[0].maxBitrate = 24000;
-                        await audioSender.setParameters(params);
-                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 24000 bps for voice.");
+            // Apply bandwidth/bitrate parameters to RTCRtpSender
+            try {
+                const senders = this.peerConnection.getSenders();
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if (audioSender) {
+                    const params = audioSender.getParameters();
+                    if (!params.encodings) {
+                        params.encodings = [{}];
                     }
-                } catch (err) {
-                    console.warn("[JS] Failed to apply audio encoder parameters:", err);
+                    if (this.optimizeForVoice) {
+                        params.encodings[0].maxBitrate = 24000;
+                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 24000 bps for voice.");
+                    } else {
+                        params.encodings[0].maxBitrate = 128000;
+                        console.log("[JS] RTCRtpSender: Audio maxBitrate set to 128000 bps for high quality stereo.");
+                    }
+                    await audioSender.setParameters(params);
                 }
+            } catch (err) {
+                console.warn("[JS] Failed to apply audio encoder parameters:", err);
             }
 
             // Drain queued remote candidates
@@ -266,7 +293,7 @@ window.airMic = {
 
     cleanup() {
         console.log("[JS] Executing cleanup...");
-        
+
         // Release Wake Lock, stop silent audio, stop video lock, and stop inactivity tracker
         this.releaseWakeLock();
         this.stopSilentAudio();
@@ -278,14 +305,14 @@ window.airMic = {
         if (this.websocket) {
             try {
                 this.websocket.close();
-            } catch (e) {}
+            } catch (e) { }
             this.websocket = null;
         }
 
         if (this.peerConnection) {
             try {
                 this.peerConnection.close();
-            } catch (e) {}
+            } catch (e) { }
             this.peerConnection = null;
         }
 
@@ -294,7 +321,7 @@ window.airMic = {
                 this.localStream.getTracks().forEach(track => {
                     track.stop();
                 });
-            } catch (e) {}
+            } catch (e) { }
             this.localStream = null;
         }
 
@@ -306,9 +333,9 @@ window.airMic = {
                 this.audioElement.removeAttribute("src");
                 try {
                     this.audioElement.load();
-                } catch (e) {}
+                } catch (e) { }
                 this.audioElement.remove();
-            } catch (e) {}
+            } catch (e) { }
             this.audioElement = null;
         }
 
@@ -322,7 +349,7 @@ window.airMic = {
         try {
             let devices = await navigator.mediaDevices.enumerateDevices();
             const hasLabels = devices.some(d => d.kind === 'audioinput' && d.label);
-            
+
             if (!hasLabels) {
                 try {
                     const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -332,7 +359,7 @@ window.airMic = {
                     console.warn("[JS] Microphone permission denied when trying to list devices:", permissionErr);
                 }
             }
-            
+
             return devices
                 .filter(d => d.kind === 'audioinput')
                 .map(d => ({
@@ -349,14 +376,14 @@ window.airMic = {
 
     initialize(dotNetRef) {
         this.dotNetRef = dotNetRef;
-        
+
         // Register device change listener
         this.registerDeviceChangeListener(dotNetRef);
-        
+
         if (this.dotNetRef) {
             this.dotNetRef.invokeMethodAsync("SetDeviceStatus", this.isMobile());
         }
-        
+
         // Setup event delegation for direct user gesture capture
         document.addEventListener('click', async (event) => {
             const btn = event.target.closest('#start-stream-btn');
@@ -384,35 +411,37 @@ window.airMic = {
     async changeAudioDevice(selectedDeviceId, bypassHardware, optimizeForVoice) {
         console.log("[JS] Changing audio device to:", selectedDeviceId, "optimizeForVoice =", optimizeForVoice);
         if (!this.localStream) return;
-        
+
         this.optimizeForVoice = optimizeForVoice;
-        
+
         try {
             // Stop current local track(s)
             this.localStream.getTracks().forEach(track => track.stop());
-            
+
             // Get new stream constraints
             const constraints = {
                 audio: {
                     ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
-                    echoCancellation: false,
+                    echoCancellation: optimizeForVoice,
                     ...(optimizeForVoice ? {
                         noiseSuppression: true,
                         autoGainControl: true,
                         channelCount: { ideal: 1 },
                         sampleRate: { ideal: 16000 },
                         latency: 0
-                    } : (bypassHardware ? {
-                        noiseSuppression: false,
-                        autoGainControl: false,
+                    } : {
+                        noiseSuppression: !bypassHardware,
+                        autoGainControl: !bypassHardware,
+                        channelCount: { ideal: 2 },
+                        sampleRate: { ideal: 48000 },
                         latency: 0
-                    } : {}))
+                    })
                 }
             };
-            
+
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
             const newTrack = this.localStream.getAudioTracks()[0];
-            
+
             // Replace the track in all active peer connection senders
             if (this.peerConnection) {
                 const senders = this.peerConnection.getSenders();
@@ -455,7 +484,7 @@ window.airMic = {
             this.wakeLock = lock;
             console.log("[JS] Screen Wake Lock acquired successfully.");
             if (this.dotNetRef) this.dotNetRef.invokeMethodAsync("SetWakeLockStatus", true);
-            
+
             this.wakeLock.addEventListener('release', () => {
                 console.log("[JS] Screen Wake Lock was released.");
                 this.wakeLock = null;
@@ -489,7 +518,7 @@ window.airMic = {
                 console.warn("[JS] AudioContext not supported on this browser.");
                 return;
             }
-            
+
             if (!this.silentAudioCtx) {
                 this.silentAudioCtx = new AudioContextClass();
                 console.log("[JS] Silent AudioContext created.");
@@ -534,6 +563,8 @@ window.airMic = {
         }
     },
 
+
+
     startVideoWakeLock() {
         if (!this.isMobile()) return;
         try {
@@ -551,16 +582,16 @@ window.airMic = {
                 this.noSleepVideo.style.opacity = "0.01";
                 this.noSleepVideo.style.pointerEvents = "none";
                 this.noSleepVideo.style.top = "0";
-                
+
                 const mp4Source = document.createElement("source");
                 mp4Source.src = "data:video/mp4;base64,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";
                 mp4Source.type = "video/mp4";
                 this.noSleepVideo.appendChild(mp4Source);
-                
+
                 document.body.appendChild(this.noSleepVideo);
                 console.log("[JS] Invisible NoSleep video element appended to DOM.");
             }
-            
+
             const playPromise = this.noSleepVideo.play();
             if (playPromise !== undefined) {
                 playPromise.then(() => {
@@ -582,7 +613,7 @@ window.airMic = {
                 this.noSleepVideo.removeAttribute("src");
                 try {
                     this.noSleepVideo.load();
-                } catch (e) {}
+                } catch (e) { }
                 this.noSleepVideo.remove();
                 console.log("[JS] Invisible video wake lock stopped and removed.");
             } catch (err) {
@@ -596,7 +627,7 @@ window.airMic = {
         if (!this.isMobile()) return;
         this.stopInactivityTracker();
         console.log("[JS] Starting inactivity tracker...");
-        
+
         this.lastInteractionTime = Date.now();
         this.activityListener = () => {
             const now = Date.now();
@@ -605,12 +636,12 @@ window.airMic = {
                 this.resetInactivityTimer();
             }
         };
-        
+
         const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
         events.forEach(name => {
             document.addEventListener(name, this.activityListener, { passive: true });
         });
-        
+
         this.resetInactivityTimer();
     },
 
@@ -634,11 +665,11 @@ window.airMic = {
         if (this.inactivityTimer) {
             clearTimeout(this.inactivityTimer);
         }
-        
+
         if (this.isOverlayActive) {
             this.setOverlayVisible(false);
         }
-        
+
         this.inactivityTimer = setTimeout(() => {
             this.setOverlayVisible(true);
         }, 10000);
@@ -659,7 +690,7 @@ document.addEventListener('visibilitychange', async () => {
         if (window.airMic && window.airMic.peerConnection) {
             console.log("[JS] Page became visible. Re-requesting wake lock...");
             await window.airMic.requestWakeLock();
-            
+
             if (window.airMic.silentAudioCtx && window.airMic.silentAudioCtx.state === 'suspended') {
                 console.log("[JS] Resuming silent AudioContext...");
                 try {
@@ -668,7 +699,7 @@ document.addEventListener('visibilitychange', async () => {
                     console.warn("[JS] Failed to resume silent AudioContext:", err);
                 }
             }
-            
+
             if (window.airMic.noSleepVideo && window.airMic.noSleepVideo.paused) {
                 console.log("[JS] Resuming silent video wake lock...");
                 try {

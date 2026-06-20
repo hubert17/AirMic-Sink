@@ -13,17 +13,19 @@ public class WasapiExclusiveSink : IAudioBufferSink
 {
     private WasapiOut? _wasapiOut;
     private BufferedWaveProvider? _bufferProvider;
+    private double _maxBacklogSeconds = 0.150;
+    private double _targetCushionSeconds = 0.075;
 
     public void Initialize(int sampleRate, int bitsPerSample, int channels, string? targetDeviceId = null, bool useExclusiveMode = true)
     {
         var format = new WaveFormat(sampleRate, bitsPerSample, channels);
         
         // Use a buffered wave provider, configured to discard frames on overflow to prevent accumulation of lag.
-        // Cap the max buffer duration to 100ms to avoid large backlogs.
+        // Cap the max buffer duration to 300ms to allow healthy jitter headroom.
         _bufferProvider = new BufferedWaveProvider(format)
         {
             DiscardOnBufferOverflow = true,
-            BufferDuration = TimeSpan.FromMilliseconds(100)
+            BufferDuration = TimeSpan.FromMilliseconds(500)
         };
 
         using var enumerator = new MMDeviceEnumerator();
@@ -85,6 +87,13 @@ public class WasapiExclusiveSink : IAudioBufferSink
         }
     }
 
+    public void ConfigureBufferThresholds(double maxBacklogSeconds, double targetCushionSeconds)
+    {
+        _maxBacklogSeconds = maxBacklogSeconds;
+        _targetCushionSeconds = targetCushionSeconds;
+        Console.WriteLine($"[WasapiExclusiveSink] Configured buffer thresholds: Max Backlog = {maxBacklogSeconds * 1000}ms, Cushion = {targetCushionSeconds * 1000}ms");
+    }
+
     public void Write(byte[] pcmData)
     {
         if (_bufferProvider == null)
@@ -93,11 +102,20 @@ public class WasapiExclusiveSink : IAudioBufferSink
         }
 
         // To prevent latency buildup from temporary network freezes or scheduling delays,
-        // clear the buffer (drop accumulated lag) if it exceeds 80ms.
-        int maxBufferedBytes = (int)(_bufferProvider.WaveFormat.AverageBytesPerSecond * 0.080);
+        // dynamically discard oldest buffered samples if the backlog exceeds the configured threshold.
+        int maxBufferedBytes = (int)(_bufferProvider.WaveFormat.AverageBytesPerSecond * _maxBacklogSeconds);
         if (_bufferProvider.BufferedBytes > maxBufferedBytes)
         {
-            _bufferProvider.ClearBuffer();
+            int targetBytes = (int)(_bufferProvider.WaveFormat.AverageBytesPerSecond * _targetCushionSeconds);
+            int bytesToDiscard = _bufferProvider.BufferedBytes - targetBytes;
+            int blockAlign = _bufferProvider.WaveFormat.BlockAlign;
+            bytesToDiscard = (bytesToDiscard / blockAlign) * blockAlign;
+
+            if (bytesToDiscard > 0)
+            {
+                byte[] discardBuffer = new byte[bytesToDiscard];
+                _bufferProvider.Read(discardBuffer, 0, bytesToDiscard);
+            }
         }
 
         _bufferProvider.AddSamples(pcmData, 0, pcmData.Length);

@@ -345,7 +345,7 @@ class Program
 
                 int sampleRate = 48000;
                 int bitsPerSample = 16;
-                int channels = 1;
+                int channels = 2; // Initialize target device in stereo to maximize exclusive mode compatibility
 
                 Console.WriteLine("[*] Initializing audio sink device (Exclusive Mode)...");
                 sink.Initialize(sampleRate, bitsPerSample, channels, selectedOutputDevice?.ID);

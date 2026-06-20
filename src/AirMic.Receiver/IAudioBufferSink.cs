@@ -22,6 +22,11 @@ public interface IAudioBufferSink : IDisposable
     void Start();
 
     /// <summary>
+    /// Configures the dynamic latency/jitter buffer discard thresholds.
+    /// </summary>
+    void ConfigureBufferThresholds(double maxBacklogSeconds, double targetCushionSeconds);
+
+    /// <summary>
     /// Stops the audio rendering device.
     /// </summary>
     void Stop();

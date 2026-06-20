@@ -24,6 +24,11 @@ public class SignalingMessage
     /// If present, flags that this session is a loopback test.
     /// </summary>
     public bool? IsTest { get; set; }
+
+    /// <summary>
+    /// If present, flags if the audio should be optimized for voice speech.
+    /// </summary>
+    public bool? OptimizeForVoice { get; set; }
 }
 
 /// <summary>
