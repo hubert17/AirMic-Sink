@@ -32,23 +32,23 @@
                         {
                             <MudItem xs="12">
                                 <MudTextField @bind-Value="SignalingUrl"
-                                               Label="Server URL"
-                                               Variant="Variant.Outlined"
-                                               Adornment="Adornment.Start"
-                                               AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
-                                               Disabled="IsConnecting || IsStreaming"
-                                               Placeholder="wss://signaling.yourdomain.com/ws"/>
+                                              Label="Server URL"
+                                              Variant="Variant.Outlined"
+                                              Adornment="Adornment.Start"
+                                              AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
+                                              Disabled="IsConnecting || IsStreaming"
+                                              Placeholder="wss://signaling.yourdomain.com/ws"/>
                             </MudItem>
 
                             <MudItem xs="12">
                                 <MudTextField @bind-Value="StreamSecret"
-                                               Label="Stream Key"
-                                               Variant="Variant.Outlined"
-                                               InputType="InputType.Password"
-                                               Adornment="Adornment.Start"
-                                               AdornmentIcon="@Icons.Material.Filled.Lock"
-                                               Disabled="IsConnecting || IsStreaming"
-                                               Placeholder="Enter Stream Secret Key"/>
+                                              Label="Stream Key"
+                                              Variant="Variant.Outlined"
+                                              InputType="InputType.Password"
+                                              Adornment="Adornment.Start"
+                                              AdornmentIcon="@Icons.Material.Filled.Lock"
+                                              Disabled="IsConnecting || IsStreaming"
+                                              Placeholder="Enter Stream Secret Key"/>
                             </MudItem>
 
                             <MudItem xs="12">
@@ -102,9 +102,9 @@
                                            Color="Color.Primary"
                                            Label="Voice-Speech Optimized Mode"
                                            Disabled="IsConnecting || IsStreaming"/>
-                                 <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px;">
-                                     Recommended: Standard setting for meetings. Keeps your voice sharp and stable while using very little network bandwidth. Turning this off activates Music Mode, delivering full-spectrum, high-fidelity stereo sound with raw capture.
-                                 </MudText>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px;">
+                                    Recommended: Standard setting for meetings. Keeps your voice sharp and stable while using very little network bandwidth. Turning this off disables communication filters to deliver unfiltered, crisp voice and high-fidelity stereo audio.
+                                </MudText>
                             </MudItem>
                         }
                         else
@@ -230,7 +230,7 @@
 {
     <div class="oled-overlay" @onclick="DismissOledOverlay">
         <div class="oled-overlay-content">
-            <MudIcon Icon="@Icons.Material.Filled.Mic" Style="font-size: 3.5rem; color: rgba(239, 83, 80, 0.35); margin-bottom: 1rem;" />
+            <MudIcon Icon="@Icons.Material.Filled.Mic" Style="font-size: 3.5rem; color: rgba(239, 83, 80, 0.35); margin-bottom: 1rem;"/>
             <p class="oled-text">AirMic-Sink Active</p>
             <p class="oled-subtext">Tap anywhere to wake up screen</p>
         </div>
@@ -299,12 +299,29 @@
     }
 
     @@keyframes oled-pixel-shift {
-        0% { transform: translate(0, 0); }
-        20% { transform: translate(12px, -15px); }
-        40% { transform: translate(-15px, 10px); }
-        60% { transform: translate(15px, 12px); }
-        80% { transform: translate(-10px, -12px); }
-        100% { transform: translate(0, 0); }
+        0% {
+            transform: translate(0, 0);
+        }
+
+        20% {
+            transform: translate(12px, -15px);
+        }
+
+        40% {
+            transform: translate(-15px, 10px);
+        }
+
+        60% {
+            transform: translate(15px, 12px);
+        }
+
+        80% {
+            transform: translate(-10px, -12px);
+        }
+
+        100% {
+            transform: translate(0, 0);
+        }
     }
 
     .oled-text {
@@ -322,8 +339,13 @@
     }
 
     @@keyframes oled-fade-in {
-        from { opacity: 0; }
-        to { opacity: 1; }
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
     }
 
     .connection-pulse {
@@ -341,10 +363,12 @@
             transform: scale(0.95);
             box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
         }
+
         70% {
             transform: scale(1);
             box-shadow: 0 0 0 6px rgba(46, 204, 113, 0);
         }
+
         100% {
             transform: scale(0.95);
             box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
@@ -640,7 +664,10 @@
         {
             JSRuntime.InvokeVoidAsync("airMic.resetInactivityTimer");
         }
-        catch {}
+        catch
+        {
+        }
+
         ShowOledOverlay = false;
         StateHasChanged();
     }
@@ -651,7 +678,9 @@
         {
             JSRuntime.InvokeVoidAsync("airMic.setOverlayVisible", true);
         }
-        catch {}
+        catch
+        {
+        }
     }
 
     private Color GetSignalingColor() => SignalingState switch
