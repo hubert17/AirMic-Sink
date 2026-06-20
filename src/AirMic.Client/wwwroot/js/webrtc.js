@@ -36,7 +36,7 @@ window.airMic = {
                         noiseSuppression: true,
                         autoGainControl: true,
                         channelCount: { ideal: 1 },
-                        sampleRate: { ideal: 16000 },
+                        sampleRate: { ideal: 48000 },
                         latency: 0
                     } : {
                         noiseSuppression: !bypassHardware,
@@ -237,8 +237,8 @@ window.airMic = {
                         params.encodings = [{}];
                     }
                     if (this.optimizeForVoice) {
-                        params.encodings[0].maxBitrate = 24000;
-                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 24000 bps for voice.");
+                        params.encodings[0].maxBitrate = 32000;
+                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 32000 bps for voice.");
                     } else {
                         params.encodings[0].maxBitrate = 128000;
                         console.log("[JS] RTCRtpSender: Audio maxBitrate set to 128000 bps for high quality stereo.");
@@ -427,7 +427,7 @@ window.airMic = {
                         noiseSuppression: true,
                         autoGainControl: true,
                         channelCount: { ideal: 1 },
-                        sampleRate: { ideal: 16000 },
+                        sampleRate: { ideal: 48000 },
                         latency: 0
                     } : {
                         noiseSuppression: !bypassHardware,

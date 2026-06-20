@@ -219,8 +219,8 @@ public class WebRtcReceiver : IDisposable
             // Apply dynamic buffer splits (latency budget thresholds) to WASAPI output sink
             if (_optimizeForVoice)
             {
-                // Voice mode: Max backlog = 150ms, Cushion = 75ms (budget low latency for calls)
-                _audioSink.ConfigureBufferThresholds(0.150, 0.075);
+                // Voice mode: Max backlog = 200ms, Cushion = 120ms (hysteresis buffering for jitter stability)
+                _audioSink.ConfigureBufferThresholds(0.200, 0.120);
             }
             else
             {
@@ -250,7 +250,7 @@ public class WebRtcReceiver : IDisposable
                             // Apply matching buffer splits to the test loopback sink
                             if (_optimizeForVoice)
                             {
-                                tempSink.ConfigureBufferThresholds(0.150, 0.075);
+                                tempSink.ConfigureBufferThresholds(0.200, 0.120);
                             }
                             else
                             {

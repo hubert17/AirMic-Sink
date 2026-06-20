@@ -13,8 +13,8 @@ public class WasapiExclusiveSink : IAudioBufferSink
 {
     private WasapiOut? _wasapiOut;
     private BufferedWaveProvider? _bufferProvider;
-    private double _maxBacklogSeconds = 0.150;
-    private double _targetCushionSeconds = 0.075;
+    private double _maxBacklogSeconds = 0.200;
+    private double _targetCushionSeconds = 0.120;
 
     public void Initialize(int sampleRate, int bitsPerSample, int channels, string? targetDeviceId = null, bool useExclusiveMode = true)
     {
