@@ -102,15 +102,8 @@
                                            Color="Color.Primary"
                                            Label="Voice-Speech Optimized Mode"
                                            Disabled="IsConnecting || IsStreaming"/>
-                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px; margin-bottom: 12px;">
-                                    Recommended: Standard setting for meetings. Keeps your voice sharp and stable while using very little network bandwidth.
-                                </MudText>
-                                <MudSwitch @bind-Value="BypassHardware"
-                                           Color="Color.Primary"
-                                           Label="Bypass Hardware Processing"
-                                           Disabled="IsConnecting || IsStreaming"/>
                                 <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.35); display: block; margin-left: 58px;">
-                                    Recommended: Turning this on bypasses mobile noise suppression and automatic gain control, reducing CPU overhead.
+                                    Recommended: Standard setting for meetings. Keeps your voice sharp and stable while using very little network bandwidth.
                                 </MudText>
                             </MudItem>
                         }
@@ -363,7 +356,6 @@
     private string SignalingUrl { get; set; } = "ws://localhost:8443/ws";
     private string StreamSecret { get; set; } = "MySuperSecretKey123";
     private bool OptimizeForVoice { get; set; } = true;
-    private bool BypassHardware { get; set; } = true;
 
     private string SignalingState { get; set; } = "Disconnected";
     private string WebRtcState { get; set; } = "Offline";
@@ -472,7 +464,7 @@
         {
             try
             {
-                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, BypassHardware, OptimizeForVoice);
+                await JSRuntime.InvokeVoidAsync("airMic.changeAudioDevice", SelectedDeviceId, OptimizeForVoice);
             }
             catch (Exception ex)
             {
@@ -518,7 +510,6 @@
                 "airMic.startStreaming",
                 SignalingUrl,
                 StreamSecret,
-                BypassHardware,
                 SelectedDeviceId,
                 OptimizeForVoice,
                 IsTestMode,

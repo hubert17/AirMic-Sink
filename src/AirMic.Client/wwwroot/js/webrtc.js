@@ -15,11 +15,11 @@ window.airMic = {
     noSleepVideo: null,
     wakeLockRequestPromise: null,
 
-    async startStreaming(signalingUrl, streamSecret, bypassHardware, selectedDeviceId, optimizeForVoice, isTestMode, dotNetRef) {
+    async startStreaming(signalingUrl, streamSecret, selectedDeviceId, optimizeForVoice, isTestMode, dotNetRef) {
         this.dotNetRef = dotNetRef;
         this.optimizeForVoice = optimizeForVoice;
         this.isTestMode = isTestMode;
-        console.log("[JS] Starting stream: bypassHardware =", bypassHardware, "selectedDeviceId =", selectedDeviceId, "optimizeForVoice =", optimizeForVoice, "isTestMode =", isTestMode);
+        console.log("[JS] Starting stream: selectedDeviceId =", selectedDeviceId, "optimizeForVoice =", optimizeForVoice, "isTestMode =", isTestMode);
 
         // Request Wake Lock and start silent audio immediately within user gesture context
         await this.requestWakeLock();
@@ -39,8 +39,8 @@ window.airMic = {
                         sampleRate: { ideal: 48000 },
                         latency: 0
                     } : {
-                        noiseSuppression: !bypassHardware,
-                        autoGainControl: !bypassHardware,
+                        noiseSuppression: false,
+                        autoGainControl: false,
                         channelCount: { ideal: 2 },
                         sampleRate: { ideal: 48000 },
                         latency: 0
@@ -408,7 +408,7 @@ window.airMic = {
         navigator.mediaDevices.addEventListener('devicechange', this.deviceChangeListener);
     },
 
-    async changeAudioDevice(selectedDeviceId, bypassHardware, optimizeForVoice) {
+    async changeAudioDevice(selectedDeviceId, optimizeForVoice) {
         console.log("[JS] Changing audio device to:", selectedDeviceId, "optimizeForVoice =", optimizeForVoice);
         if (!this.localStream) return;
 
@@ -430,8 +430,8 @@ window.airMic = {
                         sampleRate: { ideal: 48000 },
                         latency: 0
                     } : {
-                        noiseSuppression: !bypassHardware,
-                        autoGainControl: !bypassHardware,
+                        noiseSuppression: false,
+                        autoGainControl: false,
                         channelCount: { ideal: 2 },
                         sampleRate: { ideal: 48000 },
                         latency: 0
