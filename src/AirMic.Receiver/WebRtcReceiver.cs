@@ -133,9 +133,11 @@ public class WebRtcReceiver : IDisposable
             catch (Exception ex) when (retryCount < maxRetries && !_cts.Token.IsCancellationRequested)
             {
                 retryCount++;
+                string msg = $"[!] Connection attempt {retryCount}/{maxRetries} failed: {ex.Message}. Retrying in 2 seconds...";
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"[!] Connection attempt {retryCount}/{maxRetries} failed: {ex.Message}. Retrying in 2 seconds...");
+                Console.WriteLine(msg);
                 Console.ResetColor();
+                FileLogger.Log(msg, "WARN", ex);
                 await Task.Delay(2000, _cts.Token);
                 _webSocket.Dispose();
                 _webSocket = createWebSocket();
@@ -185,7 +187,9 @@ public class WebRtcReceiver : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[!] Error parsing signaling message: {ex.Message}");
+                    string msg = $"[!] Error parsing signaling message: {ex.Message}";
+                    Console.WriteLine(msg);
+                    FileLogger.Log(msg, "ERROR", ex);
                 }
             }
         }
@@ -193,7 +197,9 @@ public class WebRtcReceiver : IDisposable
         {
             if (!cancellationToken.IsCancellationRequested)
             {
-                Console.WriteLine($"[!] Exception in signaling loop: {ex.Message}");
+                string msg = $"[!] Exception in signaling loop: {ex.Message}";
+                Console.WriteLine(msg);
+                FileLogger.Log(msg, "ERROR", ex);
                 OnDisconnected?.Invoke($"Signaling loop exception: {ex.Message}");
             }
         }
@@ -262,9 +268,11 @@ public class WebRtcReceiver : IDisposable
                         }
                         catch (Exception ex)
                         {
+                            string msg = $"[!] Warning: Failed to create test counterpart sink: {ex.Message}. Falling back to default output sink.";
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"[!] Warning: Failed to create test counterpart sink: {ex.Message}. Falling back to default output sink.");
+                            Console.WriteLine(msg);
                             Console.ResetColor();
+                            FileLogger.Log(msg, "WARN", ex);
                         }
                     }
                 }
@@ -379,7 +387,9 @@ public class WebRtcReceiver : IDisposable
             var result = _peerConnection.setRemoteDescription(sdpInit);
             if (result != SetDescriptionResultEnum.OK)
             {
-                Console.WriteLine($"[!] Failed to set remote description: {result}");
+                string msg = $"[!] Failed to set remote description: {result}";
+                Console.WriteLine(msg);
+                FileLogger.Log(msg, "ERROR");
                 return;
             }
 
@@ -681,7 +691,9 @@ public class WebRtcReceiver : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[!] Failed to send signaling message: {ex.Message}");
+            string msg = $"[!] Failed to send signaling message: {ex.Message}";
+            Console.WriteLine(msg);
+            FileLogger.Log(msg, "ERROR", ex);
         }
     }
 
@@ -714,9 +726,11 @@ public class WebRtcReceiver : IDisposable
         }
         catch (Exception ex)
         {
+            string msg = $"[!] Error starting loopback capture: {ex.Message}";
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"[!] Error starting loopback capture: {ex.Message}");
+            Console.WriteLine(msg);
             Console.ResetColor();
+            FileLogger.Log(msg, "ERROR", ex);
         }
     }
 
@@ -728,17 +742,19 @@ public class WebRtcReceiver : IDisposable
             {
                 if (_wasapiCapture != null)
                 {
-                    Console.WriteLine("[*] Stopping loopback capture device...");
+                    FileLogger.Log("[*] Stopping loopback capture device...", "INFO");
                     _wasapiCapture.StopRecording();
                     _wasapiCapture.DataAvailable -= WasapiCapture_DataAvailable;
                     _wasapiCapture.Dispose();
                     _wasapiCapture = null;
-                    Console.WriteLine("[*] Loopback capture stopped and resources released.");
+                    FileLogger.Log("[*] Loopback capture stopped and resources released.", "INFO");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[!] Error stopping loopback capture: {ex.Message}");
+                string msg = $"[!] Error stopping loopback capture: {ex.Message}";
+                Console.WriteLine(msg);
+                FileLogger.Log(msg, "ERROR", ex);
             }
 
             try
@@ -763,7 +779,9 @@ public class WebRtcReceiver : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[!] Error stopping loopback capture background loop: {ex.Message}");
+                string msg = $"[!] Error stopping loopback capture background loop: {ex.Message}";
+                Console.WriteLine(msg);
+                FileLogger.Log(msg, "ERROR", ex);
             }
 
             _capturePcmQueue.Clear();
@@ -808,9 +826,11 @@ public class WebRtcReceiver : IDisposable
         }
         catch (Exception ex)
         {
+            string msg = $"[!] Failed to save or play loopback audio: {ex.Message}";
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"[!] Failed to save or play loopback audio: {ex.Message}");
+            Console.WriteLine(msg);
             Console.ResetColor();
+            FileLogger.Log(msg, "ERROR", ex);
         }
     }
 
@@ -1064,7 +1084,9 @@ public class WebRtcReceiver : IDisposable
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[!] Opus Encoding / Loopback capture error: {ex.Message}");
+                            string msg = $"[!] Opus Encoding / Loopback capture error: {ex.Message}";
+                            Console.WriteLine(msg);
+                            FileLogger.Log(msg, "ERROR", ex);
                         }
                     }
                 }

@@ -39,7 +39,9 @@ public class WasapiExclusiveSink : IAudioBufferSink
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[!] Warning: Failed to locate device by ID {targetDeviceId}: {ex.Message}. Falling back to default search.");
+                string msg = $"[!] Warning: Failed to locate device by ID {targetDeviceId}: {ex.Message}. Falling back to default search.";
+                Console.WriteLine(msg);
+                FileLogger.Log(msg, "WARN", ex);
             }
         }
 
@@ -75,10 +77,16 @@ public class WasapiExclusiveSink : IAudioBufferSink
         }
         catch (Exception ex) when (useExclusiveMode)
         {
+            string msg1 = $"[!] Warning: Failed to initialize WASAPI in Exclusive Mode: {ex.Message}";
+            string msg2 = "[*] Falling back to Shared Mode for compatibility...";
+            
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[!] Warning: Failed to initialize WASAPI in Exclusive Mode: {ex.Message}");
-            Console.WriteLine("[*] Falling back to Shared Mode for compatibility...");
+            Console.WriteLine(msg1);
+            Console.WriteLine(msg2);
             Console.ResetColor();
+
+            FileLogger.Log(msg1, "WARN", ex);
+            FileLogger.Log(msg2, "INFO");
 
             shareMode = AudioClientShareMode.Shared;
             _wasapiOut = new WasapiOut(vacDevice, shareMode, true, 15);
