@@ -203,12 +203,11 @@ public class WebRtcReceiver : IDisposable
     {
         if (message.Type == "offer")
         {
-            Console.WriteLine("[*] Received SDP Offer. Preparing WebRTC connection...");
+            FileLogger.Log("[*] Received SDP Offer. Preparing WebRTC connection...", "INFO");
             _isTestMode = message.IsTest == true;
             _optimizeForVoice = message.OptimizeForVoice ?? true;
             _channels = _optimizeForVoice ? 1 : 2;
 
-            Console.WriteLine($"[*] Connection Audio Parameters: optimizeForVoice = {_optimizeForVoice}, channels = {_channels}");
             FileLogger.Log($"Connection Audio Parameters: optimizeForVoice = {_optimizeForVoice}, channels = {_channels}");
 
             // Configure dynamic encoder/decoder settings
@@ -301,7 +300,7 @@ public class WebRtcReceiver : IDisposable
 
             _peerConnection.onconnectionstatechange += (state) =>
             {
-                Console.WriteLine($"[WebRTC] Connection state: {state}");
+                FileLogger.Log($"[WebRTC] Connection state: {state}", "INFO");
                 if (state == RTCPeerConnectionState.connected)
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
@@ -405,7 +404,6 @@ public class WebRtcReceiver : IDisposable
                 {
                     sdp = sdp.Replace($"a=rtpmap:{pt} opus/48000/2", $"a=rtpmap:{pt} opus/48000/2\r\n{targetFmtp}");
                 }
-                Console.WriteLine($"[*] SDP Answer: Forced Opus payload {pt} params -> {opusParams}");
                 FileLogger.Log($"SDP Answer: Forced Opus payload {pt} params -> {opusParams}");
             }
             answer.sdp = sdp;
@@ -422,7 +420,7 @@ public class WebRtcReceiver : IDisposable
             };
 
             await SendSignalingMessageAsync(ansMsg);
-            Console.WriteLine("[*] Sent SDP Answer to signaling client.");
+            FileLogger.Log("[*] Sent SDP Answer to signaling client.", "INFO");
         }
         else if (message.Type == "candidate")
         {
