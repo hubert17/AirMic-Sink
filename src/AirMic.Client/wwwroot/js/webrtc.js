@@ -184,7 +184,7 @@ window.airMic = {
             if (match) {
                 const pt = match[1];
                 const opusParams = this.optimizeForVoice 
-                    ? "minptime=20;useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=0;maxaveragebitrate=32000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20"
+                    ? "minptime=20;useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=0;maxaveragebitrate=24000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20"
                     : "minptime=20;useinbandfec=1;stereo=1;sprop-stereo=1;usedtx=0;maxaveragebitrate=64000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20";
                 
                 const fmtpRegex = new RegExp(`a=fmtp:${pt}\\s+.*`);
@@ -237,8 +237,8 @@ window.airMic = {
                         params.encodings = [{}];
                     }
                     if (this.optimizeForVoice) {
-                        params.encodings[0].maxBitrate = 32000;
-                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 32000 bps for voice.");
+                        params.encodings[0].maxBitrate = 24000;
+                        console.log("[JS] RTCRtpSender: Audio maxBitrate clamped to 24000 bps for voice.");
                     } else {
                         params.encodings[0].maxBitrate = 64000;
                         console.log("[JS] RTCRtpSender: Audio maxBitrate set to 64000 bps for high quality stereo.");

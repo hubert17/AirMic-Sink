@@ -91,7 +91,7 @@ public class WebRtcReceiver : IDisposable
         _cts = new CancellationTokenSource();
         _opusDecoder = new OpusDecoder(48000, _channels);
         _opusEncoder = new OpusEncoder(48000, _channels, OpusApplication.OPUS_APPLICATION_VOIP);
-        _opusEncoder.Bitrate = 32000;
+        _opusEncoder.Bitrate = 24000;
         
         // Build signaling WebSocket URL with parameters
         var wsUriBuilder = new UriBuilder(_signalingUrl);
@@ -214,7 +214,7 @@ public class WebRtcReceiver : IDisposable
             // Configure dynamic encoder/decoder settings
             _opusDecoder = new OpusDecoder(48000, _channels);
             _opusEncoder = new OpusEncoder(48000, _channels, _optimizeForVoice ? OpusApplication.OPUS_APPLICATION_VOIP : OpusApplication.OPUS_APPLICATION_AUDIO);
-            _opusEncoder.Bitrate = _optimizeForVoice ? 32000 : 64000;
+            _opusEncoder.Bitrate = _optimizeForVoice ? 24000 : 64000;
 
             // Apply dynamic buffer splits (latency budget thresholds) to WASAPI output sink
             if (_optimizeForVoice)
@@ -353,7 +353,7 @@ public class WebRtcReceiver : IDisposable
             // - stereo/sprop-stereo: dynamically toggled for high quality music/voice versus mono.
             // - maxaveragebitrate: 32kbps for voice-optimized, 128kbps for stereo music.
             string opusParams = _optimizeForVoice 
-                ? "minptime=20;useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=0;maxaveragebitrate=32000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20"
+                ? "minptime=20;useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=0;maxaveragebitrate=24000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20"
                 : "minptime=20;useinbandfec=1;stereo=1;sprop-stereo=1;usedtx=0;maxaveragebitrate=64000;maxplaybackrate=48000;sprop-maxcapturerate=48000;ptime=20";
 
             var audioFormat = new SDPAudioVideoMediaFormat(
