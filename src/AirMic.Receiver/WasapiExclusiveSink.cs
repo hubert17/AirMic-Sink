@@ -71,7 +71,7 @@ public class WasapiExclusiveSink : IAudioBufferSink
         {
             _wasapiOut = new WasapiOut(vacDevice, shareMode, true, 15);
             _wasapiOut.Init(_bufferProvider);
-            Console.WriteLine($"[+] WASAPI Target Device: {vacDevice.FriendlyName} ({(useExclusiveMode ? "Exclusive" : "Shared")} Mode)");
+            FileLogger.Log($"[+] WASAPI Target Device: {vacDevice.FriendlyName} ({(useExclusiveMode ? "Exclusive" : "Shared")} Mode)");
         }
         catch (Exception ex) when (useExclusiveMode)
         {
@@ -83,7 +83,7 @@ public class WasapiExclusiveSink : IAudioBufferSink
             shareMode = AudioClientShareMode.Shared;
             _wasapiOut = new WasapiOut(vacDevice, shareMode, true, 15);
             _wasapiOut.Init(_bufferProvider);
-            Console.WriteLine($"[+] WASAPI Target Device: {vacDevice.FriendlyName} (Shared Mode)");
+            FileLogger.Log($"[+] WASAPI Target Device: {vacDevice.FriendlyName} (Shared Mode)");
         }
     }
 
@@ -129,13 +129,13 @@ public class WasapiExclusiveSink : IAudioBufferSink
         }
 
         _wasapiOut.Play();
-        Console.WriteLine("[*] WASAPI playback thread started.");
+        FileLogger.Log("[*] WASAPI playback thread started.");
     }
 
     public void Stop()
     {
         _wasapiOut?.Stop();
-        Console.WriteLine("[*] WASAPI playback thread stopped.");
+        FileLogger.Log("[*] WASAPI playback thread stopped.");
     }
 
     public void Dispose()

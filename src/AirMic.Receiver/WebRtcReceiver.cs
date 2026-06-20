@@ -258,9 +258,7 @@ public class WebRtcReceiver : IDisposable
 
                             tempSink.Start();
                             _testPlaybackSink = tempSink;
-                            Console.ForegroundColor = ConsoleColor.Magenta;
-                            Console.WriteLine($"[*] Test Loopback: Created matching output sink for counterpart rendering device.");
-                            Console.ResetColor();
+                            FileLogger.Log($"[*] Test Loopback: Created matching output sink for counterpart rendering device.", "INFO");
                         }
                         catch (Exception ex)
                         {
@@ -702,7 +700,7 @@ public class WebRtcReceiver : IDisposable
             using var enumerator = new MMDeviceEnumerator();
             var captureDevice = enumerator.GetDevice(_captureDeviceId);
             
-            Console.WriteLine($"[*] Initializing loopback capture device: {captureDevice.FriendlyName}");
+            FileLogger.Log($"[*] Initializing loopback capture device: {captureDevice.FriendlyName}", "INFO");
             
             _captureQueue = new BlockingCollection<byte[]>();
             _captureProcessingCts = new CancellationTokenSource();
@@ -712,9 +710,7 @@ public class WebRtcReceiver : IDisposable
             _wasapiCapture.DataAvailable += WasapiCapture_DataAvailable;
             _wasapiCapture.StartRecording();
             
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"[+] Loopback Capture: Recording started successfully on {captureDevice.FriendlyName}");
-            Console.ResetColor();
+            FileLogger.Log($"[+] Loopback Capture: Recording started successfully on {captureDevice.FriendlyName}", "INFO");
         }
         catch (Exception ex)
         {
