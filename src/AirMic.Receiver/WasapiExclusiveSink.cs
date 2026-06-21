@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using Serilog;
 
 namespace AirMic.Receiver;
 
@@ -40,8 +41,7 @@ public class WasapiExclusiveSink : IAudioBufferSink
             catch (Exception ex)
             {
                 string msg = $"[!] Warning: Failed to locate device by ID {targetDeviceId}: {ex.Message}. Falling back to default search.";
-                Console.WriteLine(msg);
-                FileLogger.Log(msg, "WARN", ex);
+                AppLogger.Warning(ex, msg);
             }
         }
 
@@ -73,25 +73,20 @@ public class WasapiExclusiveSink : IAudioBufferSink
         {
             _wasapiOut = new WasapiOut(vacDevice, shareMode, true, 15);
             _wasapiOut.Init(_bufferProvider);
-            FileLogger.Log($"[+] WASAPI Target Device: {vacDevice.FriendlyName} ({(useExclusiveMode ? "Exclusive" : "Shared")} Mode)");
+            Log.Debug("[+] WASAPI Target Device: {FriendlyName} ({Mode} Mode)", vacDevice.FriendlyName, useExclusiveMode ? "Exclusive" : "Shared");
         }
         catch (Exception ex) when (useExclusiveMode)
         {
             string msg1 = $"[!] Warning: Failed to initialize WASAPI in Exclusive Mode: {ex.Message}";
             string msg2 = "[*] Falling back to Shared Mode for compatibility...";
             
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(msg1);
-            Console.WriteLine(msg2);
-            Console.ResetColor();
-
-            FileLogger.Log(msg1, "WARN", ex);
-            FileLogger.Log(msg2, "INFO");
+            AppLogger.Warning(ex, msg1);
+            AppLogger.Information(msg2);
 
             shareMode = AudioClientShareMode.Shared;
             _wasapiOut = new WasapiOut(vacDevice, shareMode, true, 15);
             _wasapiOut.Init(_bufferProvider);
-            FileLogger.Log($"[+] WASAPI Target Device: {vacDevice.FriendlyName} (Shared Mode)");
+            Log.Debug("[+] WASAPI Target Device: {FriendlyName} (Shared Mode)", vacDevice.FriendlyName);
         }
     }
 
@@ -99,7 +94,7 @@ public class WasapiExclusiveSink : IAudioBufferSink
     {
         _maxBacklogSeconds = maxBacklogSeconds;
         _targetCushionSeconds = targetCushionSeconds;
-        FileLogger.Log($"[WasapiExclusiveSink] Configured buffer thresholds: Max Backlog = {maxBacklogSeconds * 1000}ms, Cushion = {targetCushionSeconds * 1000}ms");
+        Log.Debug("[WasapiExclusiveSink] Configured buffer thresholds: Max Backlog = {MaxBacklogMs}ms, Cushion = {TargetCushionMs}ms", maxBacklogSeconds * 1000, targetCushionSeconds * 1000);
     }
 
     public void Write(byte[] pcmData)
@@ -137,13 +132,13 @@ public class WasapiExclusiveSink : IAudioBufferSink
         }
 
         _wasapiOut.Play();
-        FileLogger.Log("[*] WASAPI playback thread started.");
+        Log.Debug("[*] WASAPI playback thread started.");
     }
 
     public void Stop()
     {
         _wasapiOut?.Stop();
-        FileLogger.Log("[*] WASAPI playback thread stopped.");
+        Log.Debug("[*] WASAPI playback thread stopped.");
     }
 
     public void Dispose()

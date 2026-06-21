@@ -16,6 +16,7 @@ using System.Text.RegularExpressions;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using System.IO;
+using Serilog;
 
 namespace AirMic.Receiver;
 
@@ -134,16 +135,13 @@ public class WebRtcReceiver : IDisposable
             {
                 retryCount++;
                 string msg = $"[!] Connection attempt {retryCount}/{maxRetries} failed: {ex.Message}. Retrying in 2 seconds...";
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine(msg);
-                Console.ResetColor();
-                FileLogger.Log(msg, "WARN", ex);
+                AppLogger.Warning(ex, msg);
                 await Task.Delay(2000, _cts.Token);
                 _webSocket.Dispose();
                 _webSocket = createWebSocket();
             }
         }
-        Console.WriteLine("[+] Connected to signaling server.");
+        AppLogger.Success("[+] Connected to signaling server.");
 
         // Start listening loop in the background
         _ = Task.Run(() => ReceiveSignalingLoopAsync(_cts.Token));
@@ -167,7 +165,7 @@ public class WebRtcReceiver : IDisposable
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
-                    Console.WriteLine("[-] Signaling WebSocket closed by remote server.");
+                    AppLogger.Warning("[-] Signaling WebSocket closed by remote server.");
                     OnDisconnected?.Invoke("Signaling WebSocket closed.");
                     break;
                 }
@@ -188,8 +186,7 @@ public class WebRtcReceiver : IDisposable
                 catch (Exception ex)
                 {
                     string msg = $"[!] Error parsing signaling message: {ex.Message}";
-                    Console.WriteLine(msg);
-                    FileLogger.Log(msg, "ERROR", ex);
+                    AppLogger.Error(ex, msg);
                 }
             }
         }
@@ -198,8 +195,7 @@ public class WebRtcReceiver : IDisposable
             if (!cancellationToken.IsCancellationRequested)
             {
                 string msg = $"[!] Exception in signaling loop: {ex.Message}";
-                Console.WriteLine(msg);
-                FileLogger.Log(msg, "ERROR", ex);
+                AppLogger.Error(ex, msg);
                 OnDisconnected?.Invoke($"Signaling loop exception: {ex.Message}");
             }
         }
@@ -209,12 +205,12 @@ public class WebRtcReceiver : IDisposable
     {
         if (message.Type == "offer")
         {
-            FileLogger.Log("[*] Received SDP Offer. Preparing WebRTC connection...", "INFO");
+            Log.Debug("[*] Received SDP Offer. Preparing WebRTC connection...");
             _isTestMode = message.IsTest == true;
             _optimizeForVoice = message.OptimizeForVoice ?? true;
             _channels = _optimizeForVoice ? 1 : 2;
 
-            FileLogger.Log($"Connection Audio Parameters: optimizeForVoice = {_optimizeForVoice}, channels = {_channels}");
+            Log.Debug("Connection Audio Parameters: optimizeForVoice = {OptimizeForVoice}, channels = {Channels}", _optimizeForVoice, _channels);
 
             // Configure dynamic encoder/decoder settings
             _opusDecoder = new OpusDecoder(48000, _channels);
@@ -237,9 +233,7 @@ public class WebRtcReceiver : IDisposable
             _testPlaybackSink = null;
             if (_isTestMode)
             {
-                Console.ForegroundColor = ConsoleColor.Magenta;
-                Console.WriteLine("[*] Test Mode activated for this WebRTC session.");
-                Console.ResetColor();
+                AppLogger.Test("[*] Test Mode activated for this WebRTC session.");
 
                 // Initialize counterpart rendering sink if virtual cable matches
                 if (!string.IsNullOrEmpty(_captureDeviceId))
@@ -264,15 +258,12 @@ public class WebRtcReceiver : IDisposable
 
                             tempSink.Start();
                             _testPlaybackSink = tempSink;
-                            FileLogger.Log($"[*] Test Loopback: Created matching output sink for counterpart rendering device.", "INFO");
+                            Log.Debug("[*] Test Loopback: Created matching output sink for counterpart rendering device.");
                         }
                         catch (Exception ex)
                         {
                             string msg = $"[!] Warning: Failed to create test counterpart sink: {ex.Message}. Falling back to default output sink.";
-                            Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine(msg);
-                            Console.ResetColor();
-                            FileLogger.Log(msg, "WARN", ex);
+                            AppLogger.Warning(ex, msg);
                         }
                     }
                 }
@@ -306,12 +297,10 @@ public class WebRtcReceiver : IDisposable
 
             _peerConnection.onconnectionstatechange += (state) =>
             {
-                FileLogger.Log($"[WebRTC] Connection state: {state}", "INFO");
+                Log.Debug("[WebRTC] Connection state: {State}", state);
                 if (state == RTCPeerConnectionState.connected)
                 {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("[+] WebRTC Audio Stream established successfully!");
-                    Console.ResetColor();
+                    AppLogger.Success("[+] WebRTC Audio Stream established successfully!");
                     if (_isTestMode)
                     {
                         StartLoopbackCapture();
@@ -319,9 +308,7 @@ public class WebRtcReceiver : IDisposable
                 }
                 else if (state == RTCPeerConnectionState.closed || state == RTCPeerConnectionState.failed)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[-] WebRTC Audio connection lost.");
-                    Console.ResetColor();
+                    AppLogger.Error("[-] WebRTC Audio connection lost.");
                     StopLoopbackCapture();
                     OnDisconnected?.Invoke("WebRTC connection lost.");
                 }
@@ -331,7 +318,7 @@ public class WebRtcReceiver : IDisposable
             {
                 if (candidate != null && !string.IsNullOrEmpty(candidate.candidate))
                 {
-                    FileLogger.Log($"Gathered local ICE candidate: {candidate.candidate}", "DEBUG");
+                    Log.Debug("Gathered local ICE candidate: {Candidate}", candidate.candidate);
                     
                     // Prepend required prefix if missing to satisfy WebRTC specifications
                     string candidateFormat = candidate.candidate;
@@ -382,14 +369,13 @@ public class WebRtcReceiver : IDisposable
                 sdp = message.Sdp
             };
             
-            FileLogger.Log($"Remote SDP Offer:\n{message.Sdp}", "DEBUG");
+            Log.Debug("Remote SDP Offer:\n{Sdp}", message.Sdp);
 
             var result = _peerConnection.setRemoteDescription(sdpInit);
             if (result != SetDescriptionResultEnum.OK)
             {
                 string msg = $"[!] Failed to set remote description: {result}";
-                Console.WriteLine(msg);
-                FileLogger.Log(msg, "ERROR");
+                Log.Error("{Message}", msg);
                 return;
             }
 
@@ -412,13 +398,13 @@ public class WebRtcReceiver : IDisposable
                 {
                     sdp = sdp.Replace($"a=rtpmap:{pt} opus/48000/2", $"a=rtpmap:{pt} opus/48000/2\r\n{targetFmtp}");
                 }
-                FileLogger.Log($"SDP Answer: Forced Opus payload {pt} params -> {opusParams}");
+                Log.Debug("SDP Answer: Forced Opus payload {Pt} params -> {OpusParams}", pt, opusParams);
             }
             answer.sdp = sdp;
 
             await _peerConnection.setLocalDescription(answer);
 
-            FileLogger.Log($"Local SDP Answer:\n{answer.sdp}", "DEBUG");
+            Log.Debug("Local SDP Answer:\n{Sdp}", answer.sdp);
 
             // Send SDP Answer back to signaling channel
             var ansMsg = new SignalingMessage
@@ -428,13 +414,13 @@ public class WebRtcReceiver : IDisposable
             };
 
             await SendSignalingMessageAsync(ansMsg);
-            FileLogger.Log("[*] Sent SDP Answer to signaling client.", "INFO");
+            Log.Debug("[*] Sent SDP Answer to signaling client.");
         }
         else if (message.Type == "candidate")
         {
             if (_peerConnection != null && message.Candidate != null)
             {
-                FileLogger.Log($"Received remote ICE Candidate: {message.Candidate.Candidate}", "DEBUG");
+                Log.Debug("Received remote ICE Candidate: {Candidate}", message.Candidate.Candidate);
                 
                 _peerConnection.addIceCandidate(new RTCIceCandidateInit
                 {
@@ -515,9 +501,7 @@ public class WebRtcReceiver : IDisposable
 
                         if (!_isRecording && !_isPlayingBack)
                         {
-                            Console.ForegroundColor = ConsoleColor.Magenta;
-                            Console.WriteLine("[*] Test Loopback: Client speech detected. Recording started.");
-                            Console.ResetColor();
+                            AppLogger.Test("[*] Test Loopback: Client speech detected. Recording started.");
 
                             _isPlayingBack = false;
 
@@ -539,16 +523,13 @@ public class WebRtcReceiver : IDisposable
         catch (Exception ex)
         {
             // Log occasionally or drop silently to avoid console flooding during high packet rates
-            FileLogger.Log($"Opus Decoding Error: {ex.Message}", "ERROR");
+            Log.Debug(ex, "Opus Decoding Error: {Message}", ex.Message);
         }
     }
 
     private async Task PlaybackRecordedBufferAsync(byte[] recordedData, CancellationToken ct)
     {
-        Console.ForegroundColor = ConsoleColor.Magenta;
-        Console.WriteLine($"[*] Test Loopback: Playback started. Total bytes to stream back: {recordedData.Length}");
-        Console.ResetColor();
-        FileLogger.Log($"Test Loopback: Playback task started. Total bytes to stream back: {recordedData.Length}");
+        AppLogger.Test($"[*] Test Loopback: Playback started. Total bytes to stream back: {recordedData.Length}");
 
         try
         {
@@ -612,7 +593,7 @@ public class WebRtcReceiver : IDisposable
                 }
                 catch (Exception encEx)
                 {
-                    FileLogger.Log($"Opus Encoding Error during loopback playback: {encEx.Message}", "ERROR");
+                    Log.Debug(encEx, "Opus Encoding Error during loopback playback: {Message}", encEx.Message);
                 }
 
                 if (bytesEncoded > 0 && _peerConnection != null)
@@ -647,25 +628,16 @@ public class WebRtcReceiver : IDisposable
 
             if (!ct.IsCancellationRequested)
             {
-                Console.ForegroundColor = ConsoleColor.Magenta;
-                Console.WriteLine($"[*] Test Loopback: Playback finished. Sent {framesSent} audio frames.");
-                Console.ResetColor();
-                FileLogger.Log($"Test Loopback: Playback finished. Sent {framesSent} audio frames.");
+                AppLogger.Test($"[*] Test Loopback: Playback finished. Sent {framesSent} audio frames.");
             }
         }
         catch (OperationCanceledException)
         {
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine("[*] Test Loopback: Playback cancelled.");
-            Console.ResetColor();
-            FileLogger.Log("Test Loopback: Playback cancelled.");
+            AppLogger.Test("[*] Test Loopback: Playback cancelled.");
         }
         catch (Exception ex)
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"[!] Test Loopback Playback Error: {ex.Message}");
-            Console.ResetColor();
-            FileLogger.Log($"Test Loopback Playback Error: {ex.Message}", "ERROR", ex);
+            AppLogger.Error(ex, $"[!] Test Loopback Playback Error: {ex.Message}");
         }
         finally
         {
@@ -692,8 +664,7 @@ public class WebRtcReceiver : IDisposable
         catch (Exception ex)
         {
             string msg = $"[!] Failed to send signaling message: {ex.Message}";
-            Console.WriteLine(msg);
-            FileLogger.Log(msg, "ERROR", ex);
+            AppLogger.Error(ex, msg);
         }
     }
 
@@ -701,7 +672,7 @@ public class WebRtcReceiver : IDisposable
     {
         if (string.IsNullOrEmpty(_captureDeviceId))
         {
-            Console.WriteLine("[*] Loopback Capture: No input device ID provided. Loopback stream will not start.");
+            AppLogger.Warning("[*] Loopback Capture: No input device ID provided. Loopback stream will not start.");
             return;
         }
 
@@ -712,7 +683,7 @@ public class WebRtcReceiver : IDisposable
             using var enumerator = new MMDeviceEnumerator();
             var captureDevice = enumerator.GetDevice(_captureDeviceId);
             
-            FileLogger.Log($"[*] Initializing loopback capture device: {captureDevice.FriendlyName}", "INFO");
+            Log.Debug("[*] Initializing loopback capture device: {CaptureDeviceName}", captureDevice.FriendlyName);
             
             _captureQueue = new BlockingCollection<byte[]>();
             _captureProcessingCts = new CancellationTokenSource();
@@ -722,15 +693,12 @@ public class WebRtcReceiver : IDisposable
             _wasapiCapture.DataAvailable += WasapiCapture_DataAvailable;
             _wasapiCapture.StartRecording();
             
-            FileLogger.Log($"[+] Loopback Capture: Recording started successfully on {captureDevice.FriendlyName}", "INFO");
+            Log.Debug("[+] Loopback Capture: Recording started successfully on {CaptureDeviceName}", captureDevice.FriendlyName);
         }
         catch (Exception ex)
         {
-            string msg = $"[!] Error starting loopback capture: {ex.Message}";
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(msg);
-            Console.ResetColor();
-            FileLogger.Log(msg, "ERROR", ex);
+            string msg = $"[!] Error starting loopback playback task: {ex.Message}";
+            AppLogger.Error(ex, msg);
         }
     }
 
@@ -742,19 +710,18 @@ public class WebRtcReceiver : IDisposable
             {
                 if (_wasapiCapture != null)
                 {
-                    FileLogger.Log("[*] Stopping loopback capture device...", "INFO");
+                    Log.Debug("[*] Stopping loopback capture device...");
                     _wasapiCapture.StopRecording();
                     _wasapiCapture.DataAvailable -= WasapiCapture_DataAvailable;
                     _wasapiCapture.Dispose();
                     _wasapiCapture = null;
-                    FileLogger.Log("[*] Loopback capture stopped and resources released.", "INFO");
+                    Log.Debug("[*] Loopback capture stopped and resources released.");
                 }
             }
             catch (Exception ex)
             {
                 string msg = $"[!] Error stopping loopback capture: {ex.Message}";
-                Console.WriteLine(msg);
-                FileLogger.Log(msg, "ERROR", ex);
+                AppLogger.Error(ex, msg);
             }
 
             try
@@ -780,8 +747,7 @@ public class WebRtcReceiver : IDisposable
             catch (Exception ex)
             {
                 string msg = $"[!] Error stopping loopback capture background loop: {ex.Message}";
-                Console.WriteLine(msg);
-                FileLogger.Log(msg, "ERROR", ex);
+                AppLogger.Error(ex, msg);
             }
 
             _capturePcmQueue.Clear();
@@ -814,23 +780,20 @@ public class WebRtcReceiver : IDisposable
                 writer.Write(recordedBytes, 0, recordedBytes.Length);
             }
             Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine($"[*] Test Loopback: Silence detected ({silenceElapsed:F2}s) or limit reached. Recording stopped. Audio saved to: {filepath}");
+            AppLogger.Test($"[*] Test Loopback: Silence detected ({silenceElapsed:F2}s) or limit reached. Recording stopped. Audio saved to: {filepath}");
             Console.ResetColor();
 
             _playbackCts?.Cancel();
             _playbackCts?.Dispose();
             _isPlayingBack = true;
             _playbackCts = new CancellationTokenSource();
-            FileLogger.Log($"Test Loopback: Silence detected ({silenceElapsed:F2}s) or limit reached. Starting loopback playback task with {recordedBytes.Length} bytes.");
+            Log.Debug("Test Loopback: Silence detected ({SilenceElapsed:F2}s) or limit reached. Starting loopback playback task with {RecordedBytesLength} bytes.", silenceElapsed, recordedBytes.Length);
             _playbackTask = Task.Run(() => PlaybackRecordedBufferAsync(recordedBytes, _playbackCts.Token));
         }
         catch (Exception ex)
         {
             string msg = $"[!] Failed to save or play loopback audio: {ex.Message}";
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(msg);
-            Console.ResetColor();
-            FileLogger.Log(msg, "ERROR", ex);
+            AppLogger.Error(ex, msg);
         }
     }
 
@@ -1085,8 +1048,7 @@ public class WebRtcReceiver : IDisposable
                         catch (Exception ex)
                         {
                             string msg = $"[!] Opus Encoding / Loopback capture error: {ex.Message}";
-                            Console.WriteLine(msg);
-                            FileLogger.Log(msg, "ERROR", ex);
+                            AppLogger.Error(ex, msg);
                         }
                     }
                 }
@@ -1095,7 +1057,7 @@ public class WebRtcReceiver : IDisposable
         catch (OperationCanceledException) {}
         catch (Exception ex)
         {
-            FileLogger.Log($"Error in ProcessCaptureQueueLoop: {ex.Message}", "ERROR", ex);
+            Log.Error(ex, "Error in ProcessCaptureQueueLoop: {Message}", ex.Message);
         }
     }
 
@@ -1177,7 +1139,7 @@ public class SimpleConsoleLoggerFactory : ILoggerFactory
         _providers.Add(provider);
     }
 
-    public ILogger CreateLogger(string categoryName)
+    public Microsoft.Extensions.Logging.ILogger CreateLogger(string categoryName)
     {
         return new SimpleConsoleLogger(categoryName);
     }
@@ -1196,11 +1158,11 @@ public class SimpleConsoleLoggerFactory : ILoggerFactory
 /// </summary>
 public class SimpleConsoleLoggerProvider : ILoggerProvider
 {
-    public ILogger CreateLogger(string categoryName) => new SimpleConsoleLogger(categoryName);
+    public Microsoft.Extensions.Logging.ILogger CreateLogger(string categoryName) => new SimpleConsoleLogger(categoryName);
     public void Dispose() {}
 }
 
-public class SimpleConsoleLogger : ILogger
+public class SimpleConsoleLogger : Microsoft.Extensions.Logging.ILogger
 {
     private readonly string _categoryName;
     public SimpleConsoleLogger(string categoryName) => _categoryName = categoryName;
@@ -1214,8 +1176,24 @@ public class SimpleConsoleLogger : ILogger
         // Write SIPSorcery logs to the log file instead of cluttering the console
         if (logLevel >= LogLevel.Debug)
         {
-            FileLogger.Log(message, $"SIPSorcery:{logLevel}", exception);
+            var serilogLevel = ConvertToSerilogLevel(logLevel);
+            Serilog.Log.ForContext("SourceContext", _categoryName)
+                       .Write(serilogLevel, exception, "{Message:lj}", message);
         }
+    }
+
+    private Serilog.Events.LogEventLevel ConvertToSerilogLevel(LogLevel logLevel)
+    {
+        return logLevel switch
+        {
+            LogLevel.Trace => Serilog.Events.LogEventLevel.Verbose,
+            LogLevel.Debug => Serilog.Events.LogEventLevel.Debug,
+            LogLevel.Information => Serilog.Events.LogEventLevel.Information,
+            LogLevel.Warning => Serilog.Events.LogEventLevel.Warning,
+            LogLevel.Error => Serilog.Events.LogEventLevel.Error,
+            LogLevel.Critical => Serilog.Events.LogEventLevel.Fatal,
+            _ => Serilog.Events.LogEventLevel.Information
+        };
     }
 }
 

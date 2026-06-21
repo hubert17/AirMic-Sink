@@ -1,8 +1,11 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NAudio.CoreAudioApi;
+using Serilog;
+using Serilog.Events;
 
 namespace AirMic.Receiver;
 
@@ -10,38 +13,50 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        Console.WriteLine("=== AirMic-Sink Receiver Engine ===");
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.File(
+                path: Path.Combine(AppContext.BaseDirectory, "logs", "receiver-.log"),
+                rollingInterval: RollingInterval.Day,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
 
-        // Default run mode is signaling mode, but check if user explicitly requested test-sink
-        bool testMode = false;
-        if (args.Length > 0)
+        try
         {
-            if (args[0].ToLower() == "--mode" && args.Length > 1 && args[1].ToLower() == "test-sink")
+            Console.WriteLine("=== AirMic-Sink Receiver Engine ===");
+
+            // Default run mode is signaling mode, but check if user explicitly requested test-sink
+            bool testMode = false;
+            if (args.Length > 0)
             {
-                testMode = true;
+                if (args[0].ToLower() == "--mode" && args.Length > 1 && args[1].ToLower() == "test-sink")
+                {
+                    testMode = true;
+                }
+            }
+
+            if (testMode)
+            {
+                RunLocalSinkTest();
+            }
+            else
+            {
+                await RunSignalingModeAsync(args);
             }
         }
-
-        if (testMode)
+        finally
         {
-            RunLocalSinkTest();
-        }
-        else
-        {
-            await RunSignalingModeAsync(args);
+            Log.CloseAndFlush();
         }
     }
 
     private static void RunLocalSinkTest()
     {
-        Console.WriteLine("\n[*] Launching Local Ingestion Sink Test (Phase 1)...");
+        AppLogger.Information("\n[*] Launching Local Ingestion Sink Test (Phase 1)...");
 
         if (!OperatingSystem.IsWindows())
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("[!] Error: WASAPI Exclusive Mode is only supported on Windows.");
-            Console.WriteLine("    Future versions will support macOS BlackHole and CoreAudio.");
-            Console.ResetColor();
+            AppLogger.Error("[!] Error: WASAPI Exclusive Mode is only supported on Windows.\n    Future versions will support macOS BlackHole and CoreAudio.");
             return;
         }
 
@@ -58,7 +73,7 @@ class Program
             int bitsPerSample = 16;
             int channels = 1;
 
-            Console.WriteLine("[*] Initializing audio sink device (Exclusive Mode)...");
+            AppLogger.Information("[*] Initializing audio sink device (Exclusive Mode)...");
             sink.Initialize(sampleRate, bitsPerSample, channels);
 
             // Audio generation variables
@@ -76,7 +91,7 @@ class Program
             // Thread to continuously feed raw PCM buffers to the sink
             Thread feedThread = new Thread(() =>
             {
-                Console.WriteLine("[*] Audio feed worker loop running.");
+                AppLogger.Information("[*] Audio feed worker loop running.");
                 while (isRunning)
                 {
                     for (int i = 0; i < samplesPerFrame; i++)
@@ -104,9 +119,7 @@ class Program
                     }
                     catch (Exception ex)
                     {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine($"\n[!] Error pushing samples to audio client: {ex.Message}");
-                        Console.ResetColor();
+                        AppLogger.Error(ex, $"\n[!] Error pushing samples to audio client: {ex.Message}");
                         break;
                     }
 
@@ -118,9 +131,7 @@ class Program
             sink.Start();
             feedThread.Start();
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("\n[+] SUCCESS: Feeding continuous 440Hz tone to Virtual Audio Cable!");
-            Console.ResetColor();
+            AppLogger.Success("\n[+] SUCCESS: Feeding continuous 440Hz tone to Virtual Audio Cable!");
             Console.WriteLine("---------------------------------------------------------------");
             Console.WriteLine("--> ACTION REQUIRED: ");
             Console.WriteLine("    1. Open Teams, Zoom, or Windows Audio settings.");
@@ -137,27 +148,22 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"\n[!] Critical Ingestion Error: {ex.Message}");
-            Console.ResetColor();
+            AppLogger.Error(ex, $"\n[!] Critical Ingestion Error: {ex.Message}");
         }
         finally
         {
             sink?.Dispose();
-            Console.WriteLine("\n[*] Cleanup completed. Sink released.");
+            AppLogger.Information("\n[*] Cleanup completed. Sink released.");
         }
     }
 
     private static async Task RunSignalingModeAsync(string[] args)
     {
-        Console.WriteLine("\n[*] Launching in Signaling / WebRTC Receiver Mode (Phase 3)...");
+        AppLogger.Information("\n[*] Launching in Signaling / WebRTC Receiver Mode (Phase 3)...");
 
         if (!OperatingSystem.IsWindows())
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("[!] Error: WASAPI Exclusive Mode is only supported on Windows.");
-            Console.WriteLine("    Future versions will support macOS BlackHole and CoreAudio.");
-            Console.ResetColor();
+            AppLogger.Error("[!] Error: WASAPI Exclusive Mode is only supported on Windows.\n    Future versions will support macOS BlackHole and CoreAudio.");
             return;
         }
 
@@ -315,9 +321,7 @@ class Program
         {
             if (!firstRun)
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("\n[!] Automatically restarting connection using previously selected configurations...");
-                Console.ResetColor();
+                AppLogger.Warning("\n[!] Automatically restarting connection using previously selected configurations...");
                 // Wait 2 seconds to avoid rapid reconnection loops in case of network/server downtime
                 await Task.Delay(2000);
             }
@@ -329,9 +333,7 @@ class Program
             var shutdownTcs = new TaskCompletionSource();
             ConsoleCancelEventHandler cancelHandler = (sender, eventArgs) =>
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("\n[*] Shutdown requested. Exiting gracefully...");
-                Console.ResetColor();
+                AppLogger.Warning("\n[*] Shutdown requested. Exiting gracefully...");
                 eventArgs.Cancel = true;
                 shutdownTcs.TrySetResult();
             };
@@ -347,12 +349,12 @@ class Program
                 int bitsPerSample = 16;
                 int channels = 2; // Initialize target device in stereo to maximize exclusive mode compatibility
 
-                Console.WriteLine("[*] Initializing audio sink device (Exclusive Mode)...");
+                AppLogger.Information("[*] Initializing audio sink device (Exclusive Mode)...");
                 sink.Initialize(sampleRate, bitsPerSample, channels, selectedOutputDevice?.ID);
                 sink.Start();
 
                 // 2. Instantiate and start WebRTC receiver
-                Console.WriteLine("[*] Starting WebRTC receiver connection...");
+                AppLogger.Information("[*] Starting WebRTC receiver connection...");
                 webRtc = new WebRtcReceiver(signalingUrl, streamSecret, sink, selectedInputDevice?.ID);
 
                 var disconnectTcs = new TaskCompletionSource();
@@ -392,9 +394,7 @@ class Program
                 Console.WriteLine(borderLine);
                 Console.ResetColor();
 
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("\n[+] SUCCESS: WebRTC Receiver is running!");
-                Console.ResetColor();
+                AppLogger.Success("\n[+] SUCCESS: WebRTC Receiver is running!");
                 Console.WriteLine("---------------------------------------------------------------");
                 Console.WriteLine($"Signaling Host : {signalingUrl}");
                 Console.WriteLine("Waiting for remote mobile client to connect and stream audio...");
@@ -411,16 +411,12 @@ class Program
                 else
                 {
                     // Disconnected!
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine("\n[-] WebRTC session closed. Automatically reconnecting in 2 seconds...");
-                    Console.ResetColor();
+                    AppLogger.Warning("\n[-] WebRTC session closed. Automatically reconnecting in 2 seconds...");
                 }
             }
             catch (Exception ex)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"\n[!] Receiver Error: {ex.Message}");
-                Console.ResetColor();
+                AppLogger.Error(ex, $"\n[!] Receiver Error: {ex.Message}");
                 
                 // Wait a bit before retrying in case of network/audio device errors
                 Console.WriteLine("Retrying connection in 5 seconds... Press Ctrl+C to exit.");
@@ -435,7 +431,7 @@ class Program
                 Console.CancelKeyPress -= cancelHandler;
                 webRtc?.Dispose();
                 sink?.Dispose();
-                Console.WriteLine("\n[*] Engine shut down. Resources released.");
+                AppLogger.Information("\n[*] Engine shut down. Resources released.");
             }
         }
     }

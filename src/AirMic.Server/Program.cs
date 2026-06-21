@@ -1,8 +1,25 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Linq;
+using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File(
+        path: Path.Combine(AppContext.BaseDirectory, "logs", "server-.log"),
+        rollingInterval: RollingInterval.Day,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
 var app = builder.Build();
 
 // Enable Blazor WebAssembly unified hosting files
@@ -60,7 +77,7 @@ app.Map("/ws", async (HttpContext context) =>
     // Primitive authentication check
     if (string.IsNullOrEmpty(secret))
     {
-        Console.WriteLine($"[!] Blocked unauthorized connection attempt from {context.Connection.RemoteIpAddress}: Missing secret.");
+        app.Logger.LogWarning($"[!] Blocked unauthorized connection attempt from {context.Connection.RemoteIpAddress}: Missing secret.");
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         return;
     }
@@ -68,7 +85,7 @@ app.Map("/ws", async (HttpContext context) =>
     // Role check
     if (role != "mobile" && role != "receiver")
     {
-        Console.WriteLine($"[!] Connection rejected: Invalid role '{role}' specified.");
+        app.Logger.LogWarning($"[!] Connection rejected: Invalid role '{role}' specified.");
         context.Response.StatusCode = StatusCodes.Status400BadRequest;
         return;
     }
@@ -82,7 +99,7 @@ app.Map("/ws", async (HttpContext context) =>
         int activePublicSessions = sessions.Keys.Count(k => !privateMasterKeys.Contains(k));
         if (activePublicSessions >= maxPublicSessions)
         {
-            Console.WriteLine($"[!] Blocked connection attempt from {context.Connection.RemoteIpAddress}: Max public sessions cap ({maxPublicSessions}) reached.");
+            app.Logger.LogWarning($"[!] Blocked connection attempt from {context.Connection.RemoteIpAddress}: Max public sessions cap ({maxPublicSessions}) reached.");
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             await context.Response.WriteAsync("Signaling server is at capacity. Please try again later.");
             return;
@@ -95,7 +112,7 @@ app.Map("/ws", async (HttpContext context) =>
     // Register the socket, replacing any existing stale peer slot in this session
     var sessionPeers = sessions.GetOrAdd(secret, _ => new ConcurrentDictionary<string, WebSocket>());
     sessionPeers[role] = webSocket;
-    Console.WriteLine($"[+] {role.ToUpper()} client connected to session '{(isPrivateSession ? "[PRIVATE]" : secret)}' from {context.Connection.RemoteIpAddress}.");
+    app.Logger.LogInformation($"[+] {role.ToUpper()} client connected to session '{(isPrivateSession ? "[PRIVATE]" : secret)}' from {context.Connection.RemoteIpAddress}.");
 
     string targetRole = (role == "mobile") ? "receiver" : "mobile";
     var buffer = new byte[1024 * 32]; // 32KB buffer for signaling messages (SDP offers can be large)
@@ -108,7 +125,7 @@ app.Map("/ws", async (HttpContext context) =>
 
             if (result.MessageType == WebSocketMessageType.Close)
             {
-                Console.WriteLine($"[-] {role.ToUpper()} client in session '{(isPrivateSession ? "[PRIVATE]" : secret)}' requested closure.");
+                app.Logger.LogInformation($"[-] {role.ToUpper()} client in session '{(isPrivateSession ? "[PRIVATE]" : secret)}' requested closure.");
                 break;
             }
 
@@ -126,11 +143,11 @@ app.Map("/ws", async (HttpContext context) =>
     }
     catch (WebSocketException wsex)
     {
-        Console.WriteLine($"[!] WebSocket connection error on {role.ToUpper()} in session '{(isPrivateSession ? "[PRIVATE]" : secret)}': {wsex.Message}");
+        app.Logger.LogError(wsex, $"[!] WebSocket connection error on {role.ToUpper()} in session '{(isPrivateSession ? "[PRIVATE]" : secret)}'");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[!] Error processing signaling on {role.ToUpper()} in session '{(isPrivateSession ? "[PRIVATE]" : secret)}': {ex.Message}");
+        app.Logger.LogError(ex, $"[!] Error processing signaling on {role.ToUpper()} in session '{(isPrivateSession ? "[PRIVATE]" : secret)}'");
     }
     finally
     {
@@ -146,22 +163,29 @@ app.Map("/ws", async (HttpContext context) =>
                 sessions.TryRemove(secret, out _);
             }
         }
-        Console.WriteLine($"[-] {role.ToUpper()} client disconnected from session '{(isPrivateSession ? "[PRIVATE]" : secret)}'.");
+        app.Logger.LogInformation($"[-] {role.ToUpper()} client disconnected from session '{(isPrivateSession ? "[PRIVATE]" : secret)}'.");
     }
 });
 
 // Serve the Blazor Client fallback page for client-side routing
 app.MapFallbackToFile("index.html");
 
-// Configure listener port (if PORT env var is present, typically in Docker/containers)
-string? portStr = Environment.GetEnvironmentVariable("PORT");
-if (!string.IsNullOrEmpty(portStr) && int.TryParse(portStr, out int port))
+try
 {
-    Console.WriteLine($"🚀 AirMic-Sink Server starting on port {port} (Docker/Container mode)...");
-    app.Run($"http://0.0.0.0:{port}");
+    // Configure listener port (if PORT env var is present, typically in Docker/containers)
+    string? portStr = Environment.GetEnvironmentVariable("PORT");
+    if (!string.IsNullOrEmpty(portStr) && int.TryParse(portStr, out int port))
+    {
+        app.Logger.LogInformation($"🚀 AirMic-Sink Server starting on port {port} (Docker/Container mode)...");
+        app.Run($"http://0.0.0.0:{port}");
+    }
+    else
+    {
+        app.Logger.LogInformation("🚀 AirMic-Sink Server starting with default hosting configuration (IIS/Development mode)...");
+        app.Run();
+    }
 }
-else
+finally
 {
-    Console.WriteLine("🚀 AirMic-Sink Server starting with default hosting configuration (IIS/Development mode)...");
-    app.Run();
+    Log.CloseAndFlush();
 }
