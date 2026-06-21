@@ -207,7 +207,7 @@
                         <MudItem xs="6">
                             <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">Remote Audio</MudText>
                             <MudChip T="string" Color="@(IsLoopbackActive ? Color.Success : (IsStreaming && IsTestMode ? Color.Info : Color.Default))" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Hearing">
-                                @(IsLoopbackActive ? "Receiving" : (IsStreaming && IsTestMode ? "Loopback Test" : "Offline"))
+                                @(IsStreaming && IsTestMode ? "Loopback Test" : (IsLoopbackActive ? "Receiving" : "Offline"))
                             </MudChip>
                         </MudItem>
                     </MudGrid>
