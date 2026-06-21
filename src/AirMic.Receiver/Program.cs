@@ -195,7 +195,7 @@ class Program
         }
 
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.Write($"Enter stream secret [Default: {streamSecret}]: ");
+        Console.Write($"Enter stream key [Default: {streamSecret}]: ");
         Console.ResetColor();
         string? inputSecret = Console.ReadLine();
         if (!string.IsNullOrWhiteSpace(inputSecret))

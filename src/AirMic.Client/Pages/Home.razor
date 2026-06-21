@@ -1,4 +1,5 @@
 @page "/"
+@page "/{SecretKeyFromRoute}"
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @implements IDisposable
@@ -377,8 +378,11 @@
 </style>
 
 @code {
+    [Parameter]
+    public string? SecretKeyFromRoute { get; set; }
+
     private string SignalingUrl { get; set; } = "ws://localhost:8443/ws";
-    private string StreamSecret { get; set; } = "MySuperSecretKey123";
+    private string StreamSecret { get; set; } = string.Empty;
     private bool OptimizeForVoice { get; set; } = true;
 
     private string SignalingState { get; set; } = "Disconnected";
@@ -408,6 +412,11 @@
     protected override void OnInitialized()
     {
         _selfReference = DotNetObjectReference.Create(this);
+
+        if (!string.IsNullOrEmpty(SecretKeyFromRoute))
+        {
+            StreamSecret = SecretKeyFromRoute;
+        }
 
         // Pre-fill parameters from browser URL
         try

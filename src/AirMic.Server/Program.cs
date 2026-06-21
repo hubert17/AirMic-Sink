@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
+using System.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
@@ -15,9 +16,28 @@ app.UseStaticFiles();
 // Enable WebSockets middleware
 app.UseWebSockets();
 
-// Stream Secret configuration via appsettings configuration, environment variable or default
+// Retrieve private master keys and limit configurations
+var privateMasterKeys = builder.Configuration.GetSection("PrivateMasterKeys")
+    .GetChildren()
+    .Select(c => c.Value)
+    .Where(v => v != null)
+    .Cast<string>()
+    .ToList();
+
 string streamSecret = builder.Configuration["StreamSecret"] ?? Environment.GetEnvironmentVariable("STREAM_SECRET") ?? "MySuperSecretKey123";
-var peers = new ConcurrentDictionary<string, WebSocket>();
+if (!string.IsNullOrEmpty(streamSecret) && !privateMasterKeys.Contains(streamSecret))
+{
+    privateMasterKeys.Add(streamSecret);
+}
+
+int maxPublicSessions = 10;
+if (int.TryParse(builder.Configuration["MaxPublicSessions"] ?? Environment.GetEnvironmentVariable("MAX_PUBLIC_SESSIONS"), out int parsedLimit))
+{
+    maxPublicSessions = parsedLimit;
+}
+
+// Key = secret, Value = Dictionary mapping "mobile"/"receiver" to WebSocket
+var sessions = new ConcurrentDictionary<string, ConcurrentDictionary<string, WebSocket>>();
 
 // WebSocket endpoint
 app.Map("/ws", async (HttpContext context) =>
@@ -34,9 +54,9 @@ app.Map("/ws", async (HttpContext context) =>
     string? role = context.Request.Query["role"]; // "mobile" or "receiver"
 
     // Primitive authentication check
-    if (string.IsNullOrEmpty(secret) || secret != streamSecret)
+    if (string.IsNullOrEmpty(secret))
     {
-        Console.WriteLine($"[!] Blocked unauthorized connection attempt from {context.Connection.RemoteIpAddress}.");
+        Console.WriteLine($"[!] Blocked unauthorized connection attempt from {context.Connection.RemoteIpAddress}: Missing secret.");
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         return;
     }
@@ -49,12 +69,29 @@ app.Map("/ws", async (HttpContext context) =>
         return;
     }
 
+    // Verify session limit for public keys
+    bool isPrivateSession = privateMasterKeys.Contains(secret);
+    bool isNewSession = !sessions.ContainsKey(secret);
+
+    if (!isPrivateSession && isNewSession)
+    {
+        int activePublicSessions = sessions.Keys.Count(k => !privateMasterKeys.Contains(k));
+        if (activePublicSessions >= maxPublicSessions)
+        {
+            Console.WriteLine($"[!] Blocked connection attempt from {context.Connection.RemoteIpAddress}: Max public sessions cap ({maxPublicSessions}) reached.");
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsync("Signaling server is at capacity. Please try again later.");
+            return;
+        }
+    }
+
     // Accept WebSocket connection
     using WebSocket webSocket = await context.WebSockets.AcceptWebSocketAsync();
     
-    // Register the socket, replacing any existing stale peer slot
-    peers[role] = webSocket;
-    Console.WriteLine($"[+] {role.ToUpper()} client connected from {context.Connection.RemoteIpAddress}.");
+    // Register the socket, replacing any existing stale peer slot in this session
+    var sessionPeers = sessions.GetOrAdd(secret, _ => new ConcurrentDictionary<string, WebSocket>());
+    sessionPeers[role] = webSocket;
+    Console.WriteLine($"[+] {role.ToUpper()} client connected to session '{(isPrivateSession ? "[PRIVATE]" : secret)}' from {context.Connection.RemoteIpAddress}.");
 
     string targetRole = (role == "mobile") ? "receiver" : "mobile";
     var buffer = new byte[1024 * 32]; // 32KB buffer for signaling messages (SDP offers can be large)
@@ -67,12 +104,12 @@ app.Map("/ws", async (HttpContext context) =>
 
             if (result.MessageType == WebSocketMessageType.Close)
             {
-                Console.WriteLine($"[-] {role.ToUpper()} client requested closure.");
+                Console.WriteLine($"[-] {role.ToUpper()} client in session '{(isPrivateSession ? "[PRIVATE]" : secret)}' requested closure.");
                 break;
             }
 
-            // Relay message to the target peer if connected and open
-            if (peers.TryGetValue(targetRole, out var targetSocket) && targetSocket.State == WebSocketState.Open)
+            // Relay message to the target peer if connected and open within this session
+            if (sessionPeers.TryGetValue(targetRole, out var targetSocket) && targetSocket.State == WebSocketState.Open)
             {
                 await targetSocket.SendAsync(
                     new ArraySegment<byte>(buffer, 0, result.Count),
@@ -85,20 +122,27 @@ app.Map("/ws", async (HttpContext context) =>
     }
     catch (WebSocketException wsex)
     {
-        Console.WriteLine($"[!] WebSocket connection error on {role.ToUpper()}: {wsex.Message}");
+        Console.WriteLine($"[!] WebSocket connection error on {role.ToUpper()} in session '{(isPrivateSession ? "[PRIVATE]" : secret)}': {wsex.Message}");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[!] Error processing signaling on {role.ToUpper()}: {ex.Message}");
+        Console.WriteLine($"[!] Error processing signaling on {role.ToUpper()} in session '{(isPrivateSession ? "[PRIVATE]" : secret)}': {ex.Message}");
     }
     finally
     {
         // Try clean removal of the peer
-        if (peers.TryGetValue(role, out var registeredSocket) && registeredSocket == webSocket)
+        if (sessions.TryGetValue(secret, out var currentSession))
         {
-            peers.TryRemove(role, out _);
+            if (currentSession.TryGetValue(role, out var registeredSocket) && registeredSocket == webSocket)
+            {
+                currentSession.TryRemove(role, out _);
+            }
+            if (currentSession.IsEmpty)
+            {
+                sessions.TryRemove(secret, out _);
+            }
         }
-        Console.WriteLine($"[-] {role.ToUpper()} client disconnected.");
+        Console.WriteLine($"[-] {role.ToUpper()} client disconnected from session '{(isPrivateSession ? "[PRIVATE]" : secret)}'.");
     }
 });
 
