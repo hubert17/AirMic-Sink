@@ -1,0 +1,41 @@
+# Antigravity AI Context Ignore Rules
+
+# Version control
+.git/
+
+# IDE and system files
+.vs/
+.vscode/
+*.user
+*.suo
+*.slnLaunch.user
+
+# Build results and binaries
+bin/
+obj/
+**/bin/
+**/obj/
+publish/
+[Dd]ebug/
+[Rr]elease/
+*.exe
+*.dll
+*.pdb
+*.nupkg
+*.snupkg
+
+# Media and audio assets
+*.wav
+*.mp3
+*.ogg
+*.flac
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+
+# Diagnostic files and logs
+*.log
+logs/
+**/logs/
