@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        rid: [win-x64, win-arm64, osx-arm64, osx-x64, linux-x64]
+        rid: [win-x64, win-arm64, osx-arm64, osx-x64, linux-x64, linux-arm64]
 
     steps:
       - name: Checkout Code
@@ -32,21 +32,37 @@ jobs:
       - name: Publish Receiver App
         run: dotnet publish src/AirMic.Receiver/AirMic.Receiver.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/${{ matrix.rid }}
 
-      - name: Archive Build Artifacts
+      - name: Prepare Release Assets
         shell: pwsh
         run: |
-          Compress-Archive -Path publish/${{ matrix.rid }}/* -DestinationPath publish/AirMic.Receiver-${{ matrix.rid }}.zip
+          $rid = "${{ matrix.rid }}"
+          # Create zip archive of the output
+          Compress-Archive -Path publish/$rid/* -DestinationPath publish/AirMic.Receiver-$rid.zip
+          # Prepare raw single-file executable with platform suffix
+          if ($rid.StartsWith("win")) {
+              Copy-Item "publish/$rid/AirMic.Receiver.exe" "publish/AirMic.Receiver-$rid.exe"
+          } else {
+              Copy-Item "publish/$rid/AirMic.Receiver" "publish/AirMic.Receiver-$rid"
+          }
 
       - name: Upload Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: AirMic.Receiver-${{ matrix.rid }}
-          path: publish/AirMic.Receiver-${{ matrix.rid }}.zip
+          path: |
+            publish/AirMic.Receiver-${{ matrix.rid }}.zip
+            publish/AirMic.Receiver-${{ matrix.rid }}.exe
+            publish/AirMic.Receiver-${{ matrix.rid }}
+          if-no-files-found: ignore
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: publish/AirMic.Receiver-${{ matrix.rid }}.zip
+          files: |
+            publish/AirMic.Receiver-${{ matrix.rid }}.zip
+            publish/AirMic.Receiver-${{ matrix.rid }}.exe
+            publish/AirMic.Receiver-${{ matrix.rid }}
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
