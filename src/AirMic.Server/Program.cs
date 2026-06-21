@@ -16,7 +16,6 @@ app.UseStaticFiles();
 // Enable WebSockets middleware
 app.UseWebSockets();
 
-// Retrieve private master keys and limit configurations
 var privateMasterKeys = builder.Configuration.GetSection("PrivateMasterKeys")
     .GetChildren()
     .Select(c => c.Value)
@@ -24,10 +23,15 @@ var privateMasterKeys = builder.Configuration.GetSection("PrivateMasterKeys")
     .Cast<string>()
     .ToList();
 
-string streamSecret = builder.Configuration["StreamSecret"] ?? Environment.GetEnvironmentVariable("STREAM_SECRET") ?? "MySuperSecretKey123";
+string? streamSecret = Environment.GetEnvironmentVariable("STREAM_SECRET") ?? builder.Configuration["StreamSecret"];
 if (!string.IsNullOrEmpty(streamSecret) && !privateMasterKeys.Contains(streamSecret))
 {
     privateMasterKeys.Add(streamSecret);
+}
+
+if (privateMasterKeys.Count == 0)
+{
+    privateMasterKeys.Add("MySuperSecretKey123");
 }
 
 int maxPublicSessions = 10;

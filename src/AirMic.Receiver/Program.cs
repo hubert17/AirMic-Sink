@@ -479,6 +479,18 @@ class Program
                             {
                                 var json = System.IO.File.ReadAllText(path);
                                 using var doc = System.Text.Json.JsonDocument.Parse(json);
+                                
+                                if (doc.RootElement.TryGetProperty("PrivateMasterKeys", out var keysProp) && 
+                                    keysProp.ValueKind == System.Text.Json.JsonValueKind.Array && 
+                                    keysProp.GetArrayLength() > 0)
+                                {
+                                    var firstKey = keysProp[0].GetString();
+                                    if (!string.IsNullOrEmpty(firstKey))
+                                    {
+                                        return firstKey;
+                                    }
+                                }
+
                                 if (doc.RootElement.TryGetProperty("StreamSecret", out var prop))
                                 {
                                     return prop.GetString();
