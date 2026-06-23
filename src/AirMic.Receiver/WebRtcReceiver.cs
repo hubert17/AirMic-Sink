@@ -68,6 +68,7 @@ public class WebRtcReceiver : IDisposable
     private Task? _playbackTask;
     private volatile bool _isPlayingBack = false;
     private IAudioBufferSink? _testPlaybackSink;
+    private bool _firstAudioPacketReceived = false;
 
     public event Action<string>? OnDisconnected;
 
@@ -273,6 +274,8 @@ public class WebRtcReceiver : IDisposable
             _peerConnection?.Close("reconnecting");
             _peerConnection?.Dispose();
 
+            _firstAudioPacketReceived = false;
+
             // Set up PeerConnection configuration (use Google's public STUN for fallback NAT traversal)
             var config = new RTCConfiguration
             {
@@ -301,10 +304,7 @@ public class WebRtcReceiver : IDisposable
                 if (state == RTCPeerConnectionState.connected)
                 {
                     AppLogger.Success("[+] WebRTC Audio Stream established successfully!");
-                    if (_isTestMode)
-                    {
-                        StartLoopbackCapture();
-                    }
+                    StartLoopbackCapture();
                 }
                 else if (state == RTCPeerConnectionState.closed || state == RTCPeerConnectionState.failed)
                 {
@@ -359,7 +359,10 @@ public class WebRtcReceiver : IDisposable
                 2, 
                 opusParams
             );
-            var audioTrack = new MediaStreamTrack(SDPMediaTypesEnum.audio, false, new List<SDPAudioVideoMediaFormat> { audioFormat }, MediaStreamStatusEnum.SendRecv);
+            var trackDirection = !string.IsNullOrEmpty(_captureDeviceId) 
+                ? MediaStreamStatusEnum.SendRecv 
+                : MediaStreamStatusEnum.RecvOnly;
+            var audioTrack = new MediaStreamTrack(SDPMediaTypesEnum.audio, false, new List<SDPAudioVideoMediaFormat> { audioFormat }, trackDirection);
             _peerConnection.addTrack(audioTrack);
 
             // Set Remote SDP Offer
@@ -438,6 +441,12 @@ public class WebRtcReceiver : IDisposable
 
         try
         {
+            if (!_firstAudioPacketReceived)
+            {
+                _firstAudioPacketReceived = true;
+                AppLogger.Information("[*] WebRTC: First incoming audio packet received from client.");
+            }
+
             // Determine size of frame dynamically
             int frameSize = 960; // Default to 20ms (960 samples @ 48kHz)
             try
