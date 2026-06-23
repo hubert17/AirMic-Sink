@@ -26,8 +26,7 @@ $platforms = @(
     @{ RID = "win-x64"; Binary = "AirMic.Receiver.exe"; TargetName = "AirMic.Receiver-win-x64.exe" },
     @{ RID = "win-arm64"; Binary = "AirMic.Receiver.exe"; TargetName = "AirMic.Receiver-win-arm64.exe" },
     @{ RID = "osx-arm64"; Binary = "AirMic.Receiver"; TargetName = "AirMic.Receiver-osx-arm64" },
-    @{ RID = "osx-x64"; Binary = "AirMic.Receiver"; TargetName = "AirMic.Receiver-osx-x64" },
-    @{ RID = "linux-x64"; Binary = "AirMic.Receiver"; TargetName = "AirMic.Receiver-linux-x64" }
+    @{ RID = "osx-x64"; Binary = "AirMic.Receiver"; TargetName = "AirMic.Receiver-osx-x64" }
 )
 
 $successCount = 0
