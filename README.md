@@ -30,14 +30,14 @@ The pipeline is organized as a unified .NET Monorepo split into highly specializ
 │
 ├── 📁 src/
 │   ├── 📁 AirMic.Server/          # ASP.NET Core Minimal API WebSockets Hub (Docker/IIS-ready)
-│   ├── 📁 AirMic.Receiver/        # Desktop Engine (SIPSorcery WebRTC State Machine + WASAPI Sink)
+│   ├── 📁 AirMic.Receiver/        # Windows Desktop Engine (.NET + SIPSorcery WebRTC + WASAPI Sink)
+│   ├── 📁 AirMic.Receiver.Mac/    # macOS Apple Silicon Desktop App (Rust + CoreAudio HAL + egui)
 │   └── 📁 AirMic.Client/          # Mobile Capture Edge (.NET MAUI / Blazor Hybrid)
 │
 ├── 📁 shared/
 │   └── 📁 AirMic.Contracts/       # Zero-dependency POCOs for SDP and ICE Candidate routing
 │
-└── 📄 AirMic-Sink.sln             # Master Solution
-
+└── 📄 AirMic-Sink.slnx            # Master .NET Solution
 ```
 
 ### The Data Flow Pipeline
@@ -48,8 +48,7 @@ The pipeline is organized as a unified .NET Monorepo split into highly specializ
                                            (P2P WebRTC / UDP Stream)
                                                        │
                                                        ▼
- [ MS Teams / Zoom ] <─── [ Cable Output ] <─── [ WASAPI Exclusive Sink ]
-
+ [ MS Teams / Zoom ] <─── [ Virtual Audio Bus ] <─── [ WASAPI Exclusive (Win) / CoreAudio HAL (Mac) ]
 ```
 
 ---
@@ -82,10 +81,11 @@ To prevent chattering and dropout oscillation under network jitter, the receiver
 * **Security Context:** Implements a lean, high-velocity pre-shared **"Stream Secret Key"** parameter validation on the WebSockets upgrade pathway to instantly drop unauthenticated probes.
 * **Transport Layer:** Prioritizes raw peer-to-peer **UDP** streams to eliminate TCP Head-of-Line blocking over jitter-prone hospitality Wi-Fi.
 
-### 3. Native OS Ingestion (Windows Host)
+### 3. Native OS Ingestion (Windows & macOS Apple Silicon)
 
-* **WASAPI Exclusive Mode:** Targets the Virtual Audio Cable input buffer using `AudioClientShareMode.Exclusive`. This grants `AirMic.Receiver` direct, uninterrupted access to the hardware device driver data ring, dodging the latency penalty of the Windows audio rendering subsystem.
-* **Cross-Platform Forward Compatibility:** Architected via interface abstraction (`IAudioBufferSink`). The receiver easily adapts to macOS in the future by hot-swapping the Windows WASAPI layer for a **Mac CoreAudio / BlackHole Virtual Loopback** engine without touching the network or signaling infrastructure.
+* **Windows (`AirMic.Receiver` — WASAPI Exclusive Mode):** Targets the Virtual Audio Cable input buffer using `AudioClientShareMode.Exclusive`. This grants `AirMic.Receiver` direct, uninterrupted access to the hardware device driver data ring, dodging the latency penalty of the Windows audio rendering subsystem.
+* **macOS Apple Silicon (`AirMic.Receiver.Mac` — Rust + CoreAudio HAL):** Native `aarch64-apple-darwin` desktop window app (`eframe`/`egui` + `wgpu` Metal) with an integrated live Logs panel, VU level meters, macOS Keychain secret storage, and 1-click `440 Hz Sink Test`. Uses direct CoreAudio `AudioUnit` callbacks paired with wait-free `rtrb` ring buffers and filters strictly to virtual audio buses (`BlackHole 2ch`, `VB-Cable`, etc.)—supporting both 1-bus (`RecvOnly`) and 2-bus (`SendRecv`, e.g., `VB-Cable` + `BlackHole 2ch` side by side) call routing.
+* **Cross-Platform Wire Parity:** Both receivers share the exact same WebSocket/WebRTC signaling contract (`shared/AirMic.Contracts/SignalingMessages.cs`), Opus `48,000 Hz` / `20 ms` tuning, and `200ms/120ms` (Voice) or `300ms/135ms` (Music) playout hysteresis.
 
 ---
 
@@ -93,19 +93,32 @@ To prevent chattering and dropout oscillation under network jitter, the receiver
 
 ### Prerequisites
 
-1. **VB-Audio Virtual Cable** or **Virtual Audio Cable (VAC)** installed on the target Windows Receiver machine.
+1. **Virtual Audio Driver:**
+   * **Windows:** **VB-Audio Virtual Cable** or **Virtual Audio Cable (VAC)**.
+   * **macOS (Apple Silicon):** **BlackHole 2ch** (`brew install --cask blackhole-2ch`) and/or **VB-Cable** (having two virtual buses such as `VB-Cable` + `BlackHole 2ch` enables full bidirectional Zoom/Teams mic & speaker routing). Verify both are set to `48,000 Hz` in **Audio MIDI Setup**.
 2. A functional **Cloudflare Tunnel** (or similar reverse proxy) exposing the signaling hub securely over `HTTPS`/`WSS` to satisfy mobile browser and native application microphone permission restrictions.
 
 ### Phase 1: Local Sink Ingestion Test
 
-Before launching network code, verify your local audio routing matrix. Run the local test fixture in `AirMic.Receiver` to generate an isolated, continuous 440Hz wave directly into your Virtual Audio Cable:
+Before launching network code, verify your local audio routing matrix:
 
-```bash
-dotnet run --project src/AirMic.Receiver --mode test-sink
+* **Windows:** Run the local test fixture in `AirMic.Receiver` to generate an isolated, continuous 440Hz wave directly into your Virtual Audio Cable:
+  ```bash
+  dotnet run --project src/AirMic.Receiver --mode test-sink
+  ```
+* **macOS (Apple Silicon):** Launch `AirMicReceiver` and click **`440 Hz Sink Test`** in the window:
+  ```bash
+  cd src/AirMic.Receiver.Mac
+  LIBOPUS_STATIC=1 cargo run --release --target aarch64-apple-darwin
+  ```
+  To build the standalone `.app` bundle and `.dmg` installer (`target/release/AirMic.Receiver-macos-arm64.dmg`):
+  ```bash
+  cd src/AirMic.Receiver.Mac
+  ./scripts/build_app.sh
+  ./scripts/create_dmg.sh
+  ```
 
-```
-
-* **Validation:** Open your meeting software (Teams/Zoom), switch the microphone input source to **Cable Output**, and execute an audio loopback check. If you observe a crisp, uncorrupted synthetic tone free of crackle or distortion, the WASAPI injection loop is validated.
+* **Validation:** Open your meeting software (Teams/Zoom), switch the microphone input source to **Cable Output** (Windows) or **BlackHole 2ch / VB-Cable** (macOS), and execute an audio loopback check. If you observe a crisp, uncorrupted synthetic tone free of crackle or distortion, the audio injection loop is validated.
 
 ### Phase 2: Spin Up the .NET Signaling Hub
 
