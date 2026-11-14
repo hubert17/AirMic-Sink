@@ -428,3 +428,9 @@ FodyWeavers.xsd
 *.msm
 *.msp
 /src/AirMic.Server/appsettings.Development.json
+
+# Rust / Cargo build outputs (keep Cargo.lock tracked)
+**/target/
+*.dmg
+loopback_test.wav
+

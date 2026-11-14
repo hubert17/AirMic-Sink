@@ -1,0 +1,44 @@
+[package]
+name = "airmic-receiver-mac"
+version = "1.0.10"
+edition = "2021"
+description = "Native macOS Apple Silicon WebRTC-to-Virtual-Audio Receiver for AirMic-Sink"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "AirMicReceiver"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+bytes = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+coreaudio-sys = "0.2"
+directories = "6"
+eframe = { version = "0.31", default-features = false, features = ["wgpu", "default_fonts"] }
+egui = "0.31"
+futures-util = "0.3"
+hound = "3.5"
+opus = "0.3"
+parking_lot = "0.12"
+rtrb = "0.3"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+security-framework = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "registry"] }
+url = "2.5"
+webrtc = "0.12"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
