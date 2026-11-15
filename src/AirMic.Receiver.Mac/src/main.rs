@@ -6,16 +6,10 @@ pub mod webrtc_engine;
 
 use crate::ui::{AirMicApp, EndpointPreset};
 use directories::BaseDirs;
-use security_framework::passwords::{
-    delete_generic_password, get_generic_password, set_generic_password,
-};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-
-const KEYCHAIN_SERVICE: &str = "com.airmic.receiver";
-const KEYCHAIN_ACCOUNT: &str = "stream_secret";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -75,8 +69,7 @@ pub fn save_persisted_config(cfg: &PersistedConfig) {
     }
 }
 
-/// Loads Stream Key from macOS Keychain, falling back to `0600` local file if Keychain is unavailable,
-/// or `AIRMIC_SECRET` environment variable if set.
+/// Loads Stream Key from `AIRMIC_SECRET` env var or local `0600` file in App Support (no Keychain prompt).
 pub fn load_stream_secret() -> String {
     if let Ok(env_sec) = std::env::var("AIRMIC_SECRET") {
         if !env_sec.trim().is_empty() {
@@ -84,38 +77,24 @@ pub fn load_stream_secret() -> String {
         }
     }
 
-    if let Ok(bytes) = get_generic_password(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
-        if let Ok(sec) = String::from_utf8(bytes) {
-            if !sec.is_empty() {
-                return sec;
-            }
-        }
-    }
-
-    let fallback_path = app_support_dir().join(".stream_secret");
-    fs::read_to_string(fallback_path)
+    let secret_path = app_support_dir().join(".stream_secret");
+    fs::read_to_string(secret_path)
         .map(|s| s.trim().to_string())
         .unwrap_or_default()
 }
 
-/// Saves Stream Key to macOS Keychain (`security-framework`), with a `0600`-permission app-support fallback.
+/// Saves Stream Key to a local `0600`-permission file in App Support (no Keychain prompt).
 pub fn save_stream_secret(secret: &str) {
     let trimmed = secret.trim();
-    let fallback_path = app_support_dir().join(".stream_secret");
+    let secret_path = app_support_dir().join(".stream_secret");
 
     if trimmed.is_empty() {
-        let _ = delete_generic_password(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT);
-        let _ = fs::remove_file(fallback_path);
+        let _ = fs::remove_file(secret_path);
         return;
     }
 
-    if set_generic_password(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT, trimmed.as_bytes()).is_ok() {
-        let _ = fs::remove_file(fallback_path);
-        return;
-    }
-
-    if fs::write(&fallback_path, trimmed.as_bytes()).is_ok() {
-        let _ = fs::set_permissions(&fallback_path, fs::Permissions::from_mode(0o600));
+    if fs::write(&secret_path, trimmed.as_bytes()).is_ok() {
+        let _ = fs::set_permissions(&secret_path, fs::Permissions::from_mode(0o600));
     }
 }
 
@@ -141,12 +120,18 @@ fn main() -> eframe::Result<()> {
     let persisted = load_persisted_config();
     let initial_secret = load_stream_secret();
 
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("AirMic Receiver")
+        .with_app_id("com.airmic.receiver")
+        .with_inner_size([780.0, 620.0])
+        .with_min_inner_size([660.0, 480.0]);
+
+    if let Ok(icon) = eframe::icon_data::from_png_bytes(include_bytes!("../resources/AppIcon.png")) {
+        viewport = viewport.with_icon(std::sync::Arc::new(icon));
+    }
+
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("AirMic Receiver")
-            .with_app_id("com.airmic.receiver")
-            .with_inner_size([780.0, 620.0])
-            .with_min_inner_size([660.0, 480.0]),
+        viewport,
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };
