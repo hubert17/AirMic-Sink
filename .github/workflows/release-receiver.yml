@@ -10,12 +10,12 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    name: Build and Release
+  build-windows:
+    name: Build Windows (${{ matrix.rid }})
     runs-on: windows-latest
     strategy:
       matrix:
-        rid: [win-x64, win-arm64, osx-arm64, osx-x64]
+        rid: [win-x64, win-arm64]
 
     steps:
       - name: Checkout Code
@@ -36,14 +36,8 @@ jobs:
         shell: pwsh
         run: |
           $rid = "${{ matrix.rid }}"
-          # Create zip archive of the output
           Compress-Archive -Path publish/$rid/* -DestinationPath publish/AirMic.Receiver-$rid.zip
-          # Prepare raw single-file executable with platform suffix
-          if ($rid.StartsWith("win")) {
-              Copy-Item "publish/$rid/AirMic.Receiver.exe" "publish/AirMic.Receiver-$rid.exe"
-          } else {
-              Copy-Item "publish/$rid/AirMic.Receiver" "publish/AirMic.Receiver-$rid"
-          }
+          Copy-Item "publish/$rid/AirMic.Receiver.exe" "publish/AirMic.Receiver-$rid.exe"
 
       - name: Upload Workflow Artifacts
         uses: actions/upload-artifact@v4
@@ -52,8 +46,7 @@ jobs:
           path: |
             publish/AirMic.Receiver-${{ matrix.rid }}.zip
             publish/AirMic.Receiver-${{ matrix.rid }}.exe
-            publish/AirMic.Receiver-${{ matrix.rid }}
-          if-no-files-found: ignore
+          if-no-files-found: error
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
@@ -62,7 +55,61 @@ jobs:
           files: |
             publish/AirMic.Receiver-${{ matrix.rid }}.zip
             publish/AirMic.Receiver-${{ matrix.rid }}.exe
-            publish/AirMic.Receiver-${{ matrix.rid }}
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos-arm64:
+    name: Build macOS Apple Silicon (macos-arm64)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Native Build Dependencies (static libopus)
+        run: brew install opus pkg-config
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Cargo Registry and Build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/AirMic.Receiver.Mac
+
+      - name: Build .app Bundle and .dmg Installer
+        run: |
+          chmod +x src/AirMic.Receiver.Mac/scripts/build_app.sh src/AirMic.Receiver.Mac/scripts/create_dmg.sh
+          ./src/AirMic.Receiver.Mac/scripts/build_app.sh
+          ./src/AirMic.Receiver.Mac/scripts/create_dmg.sh
+
+      - name: Prepare Release Assets
+        run: |
+          mkdir -p publish
+          cp "src/AirMic.Receiver.Mac/target/release/AirMic.Receiver-macos-arm64.dmg" "publish/AirMic.Receiver-macos-arm64.dmg"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "src/AirMic.Receiver.Mac/target/release/AirMicReceiver.app" \
+            "publish/AirMic.Receiver-macos-arm64.app.zip"
+
+      - name: Upload Workflow Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirMic.Receiver-macos-arm64
+          path: |
+            publish/AirMic.Receiver-macos-arm64.dmg
+            publish/AirMic.Receiver-macos-arm64.app.zip
+          if-no-files-found: error
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            publish/AirMic.Receiver-macos-arm64.dmg
+            publish/AirMic.Receiver-macos-arm64.app.zip
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
