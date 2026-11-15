@@ -24,8 +24,8 @@ impl EndpointPreset {
     pub fn label(self) -> &'static str {
         match self {
             Self::LocalDev => "Local Dev (wss://localhost:7133/ws)",
-            Self::ProductionPrimary => "Production (wss://airmic.bernardgabon.com/ws)",
-            Self::ProductionIis => "Production IIS (wss://airmic-iis.bernardgabon.com/ws)",
+            Self::ProductionPrimary => "Docker Production (wss://airmic.bernardgabon.com/ws)",
+            Self::ProductionIis => "IIS Production (wss://air-mic.bernardgabon.com/ws)",
             Self::Custom => "Custom URL",
         }
     }
@@ -34,7 +34,7 @@ impl EndpointPreset {
         match self {
             Self::LocalDev => "wss://localhost:7133/ws".to_string(),
             Self::ProductionPrimary => "wss://airmic.bernardgabon.com/ws".to_string(),
-            Self::ProductionIis => "wss://airmic-iis.bernardgabon.com/ws".to_string(),
+            Self::ProductionIis => "wss://air-mic.bernardgabon.com/ws".to_string(),
             Self::Custom => custom.trim().to_string(),
         }
     }

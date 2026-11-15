@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CRATE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-APP_BUNDLE="${CRATE_DIR}/target/release/AirMicReceiver.app"
+APP_BUNDLE="${CRATE_DIR}/target/release/AirMic Receiver.app"
 DMG_PATH="${CRATE_DIR}/target/release/AirMic.Receiver-macos-arm64.dmg"
 VOL_NAME="AirMic Receiver"
 
@@ -17,7 +17,7 @@ STAGING_DIR="$(mktemp -d)"
 trap 'rm -rf "${STAGING_DIR}"' EXIT
 
 echo "[1/2] Preparing DMG staging folder with /Applications symlink..."
-cp -R "${APP_BUNDLE}" "${STAGING_DIR}/AirMicReceiver.app"
+cp -R "${APP_BUNDLE}" "${STAGING_DIR}/AirMic Receiver.app"
 ln -s /Applications "${STAGING_DIR}/Applications"
 
 echo "[2/2] Creating compressed Apple Silicon disk image ${DMG_PATH}..."

@@ -1,6 +1,6 @@
 [package]
 name = "airmic-receiver-mac"
-version = "1.0.10"
+version = "1.0.11"
 edition = "2021"
 description = "Native macOS Apple Silicon WebRTC-to-Virtual-Audio Receiver for AirMic-Sink"
 license = "MIT"

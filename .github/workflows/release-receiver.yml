@@ -91,7 +91,7 @@ jobs:
           mkdir -p publish
           cp "src/AirMic.Receiver.Mac/target/release/AirMic.Receiver-macos-arm64.dmg" "publish/AirMic.Receiver-macos-arm64.dmg"
           ditto -c -k --sequesterRsrc --keepParent \
-            "src/AirMic.Receiver.Mac/target/release/AirMicReceiver.app" \
+            "src/AirMic.Receiver.Mac/target/release/AirMic Receiver.app" \
             "publish/AirMic.Receiver-macos-arm64.app.zip"
 
       - name: Upload Workflow Artifacts
